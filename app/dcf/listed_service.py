@@ -240,7 +240,7 @@ def run_listed_valuation(params: dict) -> dict:
         "ddm_result": ddm_result,
         "rim_result": rim_result,
         "comp_results": comp_results,
-        "charts": {k: (v.to_json() if v is not None else None) for k, v in charts.items()},
+        "charts": {k: (de.apply_chart_theme(v).to_json() if v is not None else None) for k, v in charts.items()},
         "tax_rate": params["tax_rate"],
         "terminal_growth": params["terminal_growth"],
         "projection_years": params["projection_years"],

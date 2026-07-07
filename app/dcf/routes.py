@@ -500,6 +500,7 @@ def screener_analyze():
         "rev_growth_override": num("rev_growth_override", 0),
         "opex_margin_override": num("opex_margin_override", 0),
         "peers": peers,
+        "peer_tickers": f.get("peer_tickers", "").strip(),
     }
 
     try:

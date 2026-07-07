@@ -147,6 +147,21 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
     if params.get("peers"):
         manual_peer_valuation = se.calculate_manual_peer_valuation(financials, shares, params["peers"])
 
+    # Ticker-based peer comparables (P/E, P/B, P/S, EV/EBITDA, EV/Sales) — same
+    # engine the Listed mode uses. target_ticker=None routes perform_comparative_valuation
+    # into its "unlisted-style" branch, which uses target_financials/target_shares
+    # directly instead of trying to look the company itself up on Yahoo Finance.
+    comp_results = None
+    peer_tickers = params.get("peer_tickers", "").strip()
+    if peer_tickers:
+        try:
+            comp_results = de.perform_comparative_valuation(
+                None, peer_tickers, financials, shares,
+                params.get("exchange", "NS"), projections=projections,
+            )
+        except Exception:
+            comp_results = None  # relative valuation is a bonus, not core — fail soft
+
     charts = {
         "historical": de.create_historical_financials_chart(financials),
         "projections": de.create_fcff_projection_chart(projections),
@@ -163,7 +178,8 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
         "ddm_result": ddm_result,
         "rim_result": rim_result,
         "manual_peer_valuation": manual_peer_valuation,
-        "charts": {k: (v.to_json() if v is not None else None) for k, v in charts.items()},
+        "comp_results": comp_results,
+        "charts": {k: (de.apply_chart_theme(v).to_json() if v is not None else None) for k, v in charts.items()},
         "tax_rate": params["tax_rate"],
         "terminal_growth": params["terminal_growth"],
     })

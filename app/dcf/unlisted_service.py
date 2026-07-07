@@ -144,8 +144,13 @@ def run_unlisted_valuation(excel_path: str, params: dict) -> dict:
     peer_tickers = params.get("peer_tickers", "").strip()
     if params.get("run_comp", True) and peer_tickers:
         try:
+            # target_ticker=None is intentional and required here: it routes
+            # perform_comparative_valuation into its "unlisted" branch, which
+            # builds the target's metrics from `financials`/`shares` directly
+            # instead of trying (and failing) to look up the company name as
+            # if it were a Yahoo Finance ticker.
             comp_results = de.perform_comparative_valuation(
-                params.get("company_name", "Company"), peer_tickers, financials, shares, "NS", projections=projections
+                None, peer_tickers, financials, shares, "NS", projections=projections
             )
         except Exception:
             comp_results = None
@@ -167,7 +172,7 @@ def run_unlisted_valuation(excel_path: str, params: dict) -> dict:
         "valuation": valuation,
         "rim_result": rim_result,
         "comp_results": comp_results,
-        "charts": {k: (v.to_json() if v is not None else None) for k, v in charts.items()},
+        "charts": {k: (de.apply_chart_theme(v).to_json() if v is not None else None) for k, v in charts.items()},
         "tax_rate": params["tax_rate"],
         "terminal_growth": params["terminal_growth"],
         "projection_years": params["projection_years"],

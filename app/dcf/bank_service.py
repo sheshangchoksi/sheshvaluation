@@ -79,5 +79,5 @@ def run_bank_valuation(financials: dict, shares: int, params: dict) -> dict:
         "rim_result": rim_result,
         "ddm_result": ddm_result,
         "pb_roe_result": pb_roe_result,
-        "charts": {k: (v.to_json() if v is not None else None) for k, v in charts.items()},
+        "charts": {k: (de.apply_chart_theme(v).to_json() if v is not None else None) for k, v in charts.items()},
     }
