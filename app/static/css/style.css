@@ -1,6 +1,164 @@
-body {
-  background-color: #f7f8fa;
+/* ============================================================
+   DCF Valuation Engine — visual theme
+   Serif, document-like presentation befitting a finance tool.
+   ============================================================ */
+
+:root {
+  --serif: "Times New Roman", Times, Georgia, "Liberation Serif", serif;
+  --ink: #1c1c1c;
+  --ink-soft: #4a4a45;
+  --paper: #faf8f3;
+  --paper-card: #ffffff;
+  --hairline: #d8d2c4;
+  --navy: #1f3a5f;
+  --navy-dark: #16293f;
+  --gold: #a9812f;
+  --up: #1e6b3a;
+  --down: #9c2b2b;
 }
+
+* { font-family: var(--serif) !important; }
+
+html, body {
+  background-color: var(--paper);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+body { letter-spacing: 0.1px; }
+
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.2px;
+}
+
+h4 { font-size: 1.65rem; }
+h6, .card-title { font-size: 1.15rem; font-weight: 700; }
+
+p, label, .form-label, .form-text, td, th, li { font-size: 1rem; }
+
+/* ---------- Navbar ---------- */
+.navbar.bg-dark {
+  background-color: var(--navy-dark) !important;
+  border-bottom: 3px solid var(--gold);
+}
+.navbar-brand {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.navbar-text, .navbar .btn { font-size: 1rem; }
+
+/* ---------- Cards ---------- */
 .card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background-color: var(--paper-card);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
+.card-title {
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  color: var(--navy);
+}
+.card-body { padding: 1.5rem; }
+
+/* Stat cards on results pages */
+.card.text-center .fs-4 {
+  font-size: 2rem !important;
+  font-weight: 700;
+  color: var(--navy);
+}
+.card.text-center .text-muted.small {
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-size: 0.78rem !important;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  border-radius: 3px;
+  font-size: 1rem;
+  letter-spacing: 0.2px;
+}
+.btn-primary {
+  background-color: var(--navy);
+  border-color: var(--navy);
+}
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--navy-dark);
+  border-color: var(--navy-dark);
+}
+.btn-outline-primary {
+  color: var(--navy);
+  border-color: var(--navy);
+}
+.btn-outline-primary:hover {
+  background-color: var(--navy);
+  border-color: var(--navy);
+}
+.btn-outline-secondary { border-color: var(--hairline); color: var(--ink-soft); }
+
+/* ---------- Forms ---------- */
+.form-control, .form-select {
+  font-size: 1rem;
+  border-color: var(--hairline);
+  border-radius: 3px;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 0.2rem rgba(31, 58, 95, 0.15);
+}
+.form-text { color: var(--ink-soft); font-size: 0.9rem; }
+
+/* ---------- Accordion ---------- */
+.accordion-item {
+  border-color: var(--hairline);
+  margin-bottom: 2px;
+}
+.accordion-button {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--navy);
+  background-color: var(--paper-card);
+}
+.accordion-button:not(.collapsed) {
+  color: var(--navy-dark);
+  background-color: #eef2f6;
+  box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.accordion-button:focus { box-shadow: 0 0 0 0.2rem rgba(31, 58, 95, 0.15); }
+.accordion-body { padding: 1.5rem; }
+
+/* ---------- Tables ---------- */
+.table { font-size: 1rem; }
+.table thead th {
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  letter-spacing: 0.6px;
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--navy);
+  font-weight: 700;
+}
+.table-active, tfoot tr, tfoot td {
+  background-color: #f0ede4 !important;
+}
+.table td, .table th { vertical-align: middle; }
+
+/* ---------- Alerts ---------- */
+.alert { font-size: 1rem; border-radius: 3px; border-width: 1px; }
+.alert-success { color: var(--up); }
+.alert-danger { color: var(--down); }
+
+/* ---------- Misc semantic colors ---------- */
+.text-success { color: var(--up) !important; }
+.text-danger { color: var(--down) !important; }
+
+/* ---------- Small print ---------- */
+small, .small { font-size: 0.88rem; }
+
+/* Keep Plotly chart text readable */
+.js-plotly-plot, .plotly, .plot-container { font-family: var(--serif) !important; }
