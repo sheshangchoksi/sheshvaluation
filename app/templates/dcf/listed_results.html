@@ -54,7 +54,7 @@
   <div class="accordion" id="resultsAccordion">
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#tab-hist">Historical</button></h2>
-      <div id="tab-hist" class="accordion-collapse collapse show" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-hist" class="accordion-collapse collapse show"><div class="accordion-body">
       <div id="chart-hist"></div>
       <table class="table table-sm mt-3">
         <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>EBIT</th><th>NOPAT</th></tr></thead>
@@ -76,7 +76,7 @@
 
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-proj">Projections</button></h2>
-      <div id="tab-proj" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-proj" class="accordion-collapse collapse"><div class="accordion-body">
       <div id="chart-proj"></div>
       <table class="table table-sm mt-3">
         <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>NOPAT</th><th>Capex</th><th>FCFF</th></tr></thead>
@@ -99,7 +99,7 @@
 
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-wacc">WACC</button></h2>
-      <div id="tab-wacc" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-wacc" class="accordion-collapse collapse"><div class="accordion-body">
       <div id="chart-wacc"></div>
       <div class="row mt-3">
         <div class="col-md-6">
@@ -121,7 +121,7 @@
 
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-dcf">DCF Summary</button></h2>
-      <div id="tab-dcf" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-dcf" class="accordion-collapse collapse"><div class="accordion-body">
       <div id="chart-waterfall"></div>
       <table class="table table-sm mt-3">
         <tbody>
@@ -141,7 +141,7 @@
 
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-sens">Sensitivity</button></h2>
-      <div id="tab-sens" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-sens" class="accordion-collapse collapse"><div class="accordion-body">
       <div id="chart-sens"></div>
       <p class="text-muted small mt-2">Fair value per share across WACC and terminal-growth combinations.</p>
       </div></div>
@@ -149,7 +149,7 @@
 
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-ddm">DDM</button></h2>
-      <div id="tab-ddm" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-ddm" class="accordion-collapse collapse"><div class="accordion-body">
       {% if r.ddm_result and r.ddm_result.get('value_per_share', 0) > 0 %}
         <p class="fs-5">Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.ddm_result.value_per_share) }}</strong></p>
         <p class="mb-1">Current DPS: {{ r.csym }}{{ "%.2f"|format(r.ddm_result.current_dps) }} | Dividend Growth: {{ "%.1f"|format(r.ddm_result.dividend_growth) }}% | Payout Ratio: {{ "%.1f"|format(r.ddm_result.payout_ratio) }}%</p>
@@ -166,7 +166,7 @@
 
     <div class="accordion-item">
       <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rim">RIM</button></h2>
-      <div id="tab-rim" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="tab-rim" class="accordion-collapse collapse"><div class="accordion-body">
       {% if r.rim_result and r.rim_result.get('value_per_share', 0) > 0 %}
         <p class="fs-5">Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.rim_result.value_per_share) }}</strong></p>
         <p class="mb-1">Book Value/Share: {{ r.csym }}{{ "%.2f"|format(r.rim_result.book_value_per_share) }} | ROE: {{ "%.2f"|format(r.rim_result.roe) }}%</p>
@@ -183,19 +183,112 @@
 
     {% if r.comp_results %}
     <div class="accordion-item">
-      <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation</button></h2>
-      <div id="tab-rel" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
-      <table class="table table-sm">
-        <thead><tr><th>Ticker</th><th>Price</th><th>P/E</th><th>P/B</th></tr></thead>
+      <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation (Comparable Companies)</button></h2>
+      <div id="tab-rel" class="accordion-collapse collapse"><div class="accordion-body">
+
+      <h6 class="text-uppercase text-muted small fw-bold mb-2">Peer set</h6>
+      <div class="table-responsive mb-4">
+      <table class="table table-sm table-hover align-middle">
+        <thead><tr>
+          <th>Ticker</th><th>Company</th><th class="text-end">Price</th>
+          <th class="text-end">P/E</th><th class="text-end">P/B</th><th class="text-end">P/S</th>
+          <th class="text-end">EV/EBITDA</th><th class="text-end">EV/Sales</th>
+        </tr></thead>
         <tbody>
           {% for p in r.comp_results.comparables %}
-          <tr><td>{{ p.ticker }}</td><td>{{ "%.2f"|format(p.price) }}</td><td>{{ "%.2f"|format(p.pe) }}x</td><td>{{ "%.2f"|format(p.pb) }}x</td></tr>
+          <tr>
+            <td><strong>{{ p.ticker }}</strong></td>
+            <td>{{ p.name }}</td>
+            <td class="text-end">{{ r.comp_results._currency_symbol }}{{ "%.2f"|format(p.price) }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.pe) if p.pe else "—" }}{{ "x" if p.pe }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.pb) if p.pb else "—" }}{{ "x" if p.pb }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.ps) if p.ps else "—" }}{{ "x" if p.ps }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.ev_ebitda) if p.ev_ebitda else "—" }}{{ "x" if p.ev_ebitda }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.ev_sales) if p.ev_sales else "—" }}{{ "x" if p.ev_sales }}</td>
+          </tr>
           {% endfor %}
         </tbody>
+        {% if r.comp_results.multiples_stats %}
+        <tfoot class="table-light">
+          <tr class="fw-bold">
+            <td colspan="3">Average</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.pe.average) + "x" if r.comp_results.multiples_stats.pe }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.pb.average) + "x" if r.comp_results.multiples_stats.pb }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.ps.average) + "x" if r.comp_results.multiples_stats.ps }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.ev_ebitda.average) + "x" if r.comp_results.multiples_stats.ev_ebitda }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.ev_sales.average) + "x" if r.comp_results.multiples_stats.ev_sales }}</td>
+          </tr>
+          <tr class="fw-bold">
+            <td colspan="3">Median</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.pe.median) + "x" if r.comp_results.multiples_stats.pe }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.pb.median) + "x" if r.comp_results.multiples_stats.pb }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.ps.median) + "x" if r.comp_results.multiples_stats.ps }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.ev_ebitda.median) + "x" if r.comp_results.multiples_stats.ev_ebitda }}</td>
+            <td class="text-end">{{ "%.2f"|format(r.comp_results.multiples_stats.ev_sales.median) + "x" if r.comp_results.multiples_stats.ev_sales }}</td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
-      {% for method_key, val in r.comp_results.valuations.items() %}
-        <p><strong>{{ val.method }}</strong> — Avg: {{ r.csym }}{{ "%.2f"|format(val.fair_value_avg) }}, Median: {{ r.csym }}{{ "%.2f"|format(val.fair_value_median) }}</p>
-      {% endfor %}
+      </div>
+
+      <h6 class="text-uppercase text-muted small fw-bold mb-2">Implied fair value by method</h6>
+      <div class="row g-3 mb-2">
+        {% for method_key, val in r.comp_results.valuations.items() %}
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100">
+            <div class="card-body">
+              <h6 class="card-title mb-1">{{ val.method }}</h6>
+              <div class="d-flex justify-content-between">
+                <div>
+                  <div class="text-muted small">Avg multiple</div>
+                  <div class="fs-5">{{ r.comp_results._currency_symbol }}{{ "%.2f"|format(val.fair_value_avg) }}</div>
+                  {% if val.upside_avg is defined %}<div class="small {{ 'text-success' if val.upside_avg > 0 else 'text-danger' }}">{{ "%+.1f"|format(val.upside_avg) }}%</div>{% endif %}
+                </div>
+                <div>
+                  <div class="text-muted small">Median multiple</div>
+                  <div class="fs-5">{{ r.comp_results._currency_symbol }}{{ "%.2f"|format(val.fair_value_median) }}</div>
+                  {% if val.upside_median is defined %}<div class="small {{ 'text-success' if val.upside_median > 0 else 'text-danger' }}">{{ "%+.1f"|format(val.upside_median) }}%</div>{% endif %}
+                </div>
+              </div>
+              <p class="text-muted small mb-0 mt-2">{{ val.formula_avg }}</p>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if r.comp_results.valuations %}
+      {% set blended_avg = (r.comp_results.valuations.values() | map(attribute='fair_value_avg') | list) %}
+      {% if blended_avg %}
+      <div class="alert alert-secondary mt-3 mb-0">
+        <strong>Blended relative-valuation estimate (avg of methods):</strong>
+        {{ r.comp_results._currency_symbol }}{{ "%.2f"|format(blended_avg | sum / blended_avg | length) }}
+        vs. DCF fair value of {{ r.csym }}{{ "%.2f"|format(r.valuation.fair_value_per_share) }}
+      </div>
+      {% endif %}
+      {% endif %}
+
+      {% if r.comp_results.forward_pe %}
+      <div class="alert alert-info mt-3 mb-0">
+        <strong>12-Month Forward P/E:</strong> {{ r.comp_results._currency_symbol }}{{ "%.2f"|format(r.comp_results.forward_pe.fair_value_avg) }}
+        (avg) / {{ r.comp_results._currency_symbol }}{{ "%.2f"|format(r.comp_results.forward_pe.fair_value_median) }} (median)
+        — {{ r.comp_results.forward_pe.calculation_note }}
+      </div>
+      {% endif %}
+      </div></div>
+    </div>
+    {% elif params.get('peer_tickers') %}
+    <div class="accordion-item">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation</button></h2>
+      <div id="tab-rel" class="accordion-collapse collapse"><div class="accordion-body">
+        <div class="alert alert-warning mb-0">Couldn't fetch usable data for the peer tickers supplied. Double-check the tickers (include exchange suffix, e.g. TCS.NS) and try again.</div>
+      </div></div>
+    </div>
+    {% else %}
+    <div class="accordion-item">
+      <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation</button></h2>
+      <div id="tab-rel" class="accordion-collapse collapse"><div class="accordion-body">
+        <div class="alert alert-light border mb-0">No peer tickers were supplied for this run — go back and use <strong>Auto-fetch</strong> or enter peers manually to see P/E, P/B, P/S, EV/EBITDA and EV/Sales relative valuation here.</div>
       </div></div>
     </div>
     {% endif %}

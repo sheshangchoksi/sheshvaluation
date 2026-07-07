@@ -44,7 +44,7 @@
   </div>
 
   <div class="accordion" id="resultsAccordion">
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button " type="button" data-bs-toggle="collapse" data-bs-target="#tab-hist">Historical</button></h2><div id="tab-hist" class="accordion-collapse collapse show" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button " type="button" data-bs-toggle="collapse" data-bs-target="#tab-hist">Historical</button></h2><div id="tab-hist" class="accordion-collapse collapse show"><div class="accordion-body">
       <div id="chart-hist"></div>
       <table class="table table-sm mt-3">
         <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>EBIT</th><th>NOPAT</th></tr></thead>
@@ -63,7 +63,7 @@
       <p class="text-muted small">Figures in Rs. Crores (Screener.in convention).</p>
     </div></div></div>
 
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-proj">Projections</button></h2><div id="tab-proj" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-proj">Projections</button></h2><div id="tab-proj" class="accordion-collapse collapse "><div class="accordion-body">
       <div id="chart-proj"></div>
       <table class="table table-sm mt-3">
         <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>NOPAT</th><th>Capex</th><th>FCFF</th></tr></thead>
@@ -82,7 +82,7 @@
       </table>
     </div></div></div>
 
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-wacc">WACC</button></h2><div id="tab-wacc" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-wacc">WACC</button></h2><div id="tab-wacc" class="accordion-collapse collapse "><div class="accordion-body">
       <div id="chart-wacc"></div>
       <div class="row mt-3">
         <div class="col-md-6">
@@ -99,7 +99,7 @@
       </div>
     </div></div></div>
 
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-dcf">DCF Summary</button></h2><div id="tab-dcf" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-dcf">DCF Summary</button></h2><div id="tab-dcf" class="accordion-collapse collapse "><div class="accordion-body">
       <div id="chart-waterfall"></div>
       <table class="table table-sm mt-3">
         <tbody>
@@ -113,7 +113,7 @@
       </table>
     </div></div></div>
 
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-ddm">DDM</button></h2><div id="tab-ddm" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-ddm">DDM</button></h2><div id="tab-ddm" class="accordion-collapse collapse "><div class="accordion-body">
       {% if r.ddm_result and r.ddm_result.get('status') == 'Success' %}
         <p class="fs-5">Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.ddm_result.value_per_share) }}</strong></p>
         <p class="mb-1">Latest DPS: {{ r.csym }}{{ "%.2f"|format(r.ddm_result.latest_dps) }} | Historical Growth: {{ "%.2f"|format(r.ddm_result.historical_growth_rate * 100) }}% | Required Return: {{ "%.2f"|format(r.ddm_result.required_return * 100) }}%</p>
@@ -122,7 +122,7 @@
       {% endif %}
     </div></div></div>
 
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rim">RIM</button></h2><div id="tab-rim" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rim">RIM</button></h2><div id="tab-rim" class="accordion-collapse collapse "><div class="accordion-body">
       {% if r.rim_result and r.rim_result.get('status') == 'Success' %}
         <p class="fs-5">Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.rim_result.value_per_share) }}</strong></p>
         <p class="mb-1">Book Value: {{ r.csym }}{{ "%.2f"|format(r.rim_result.book_value) }} Lacs | Avg ROE: {{ "%.2f"|format(r.rim_result.avg_roe * 100) }}% | Required Return: {{ "%.2f"|format(r.rim_result.required_return * 100) }}%</p>
@@ -131,8 +131,51 @@
       {% endif %}
     </div></div></div>
 
+    {% if r.comp_results and r.comp_results.comparables %}
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel-auto">Relative Valuation (Auto-fetched Peers)</button></h2><div id="tab-rel-auto" class="accordion-collapse collapse "><div class="accordion-body">
+      <div class="table-responsive mb-4">
+      <table class="table table-sm table-hover align-middle">
+        <thead><tr>
+          <th>Ticker</th><th>Company</th><th class="text-end">Price</th>
+          <th class="text-end">P/E</th><th class="text-end">P/B</th><th class="text-end">P/S</th>
+          <th class="text-end">EV/EBITDA</th><th class="text-end">EV/Sales</th>
+        </tr></thead>
+        <tbody>
+          {% for p in r.comp_results.comparables %}
+          <tr>
+            <td><strong>{{ p.ticker }}</strong></td>
+            <td>{{ p.name }}</td>
+            <td class="text-end">{{ r.comp_results._currency_symbol }}{{ "%.2f"|format(p.price) }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.pe) if p.pe else "—" }}{{ "x" if p.pe }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.pb) if p.pb else "—" }}{{ "x" if p.pb }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.ps) if p.ps else "—" }}{{ "x" if p.ps }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.ev_ebitda) if p.ev_ebitda else "—" }}{{ "x" if p.ev_ebitda }}</td>
+            <td class="text-end">{{ "%.2f"|format(p.ev_sales) if p.ev_sales else "—" }}{{ "x" if p.ev_sales }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <h6 class="text-uppercase text-muted small fw-bold mb-2">Implied fair value by method</h6>
+      <div class="row g-3">
+        {% for method_key, val in r.comp_results.valuations.items() %}
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100"><div class="card-body">
+            <h6 class="card-title mb-1">{{ val.method }}</h6>
+            <div class="d-flex justify-content-between">
+              <div><div class="text-muted small">Avg multiple</div><div class="fs-5">{{ r.comp_results._currency_symbol }}{{ "%.2f"|format(val.fair_value_avg) }}</div></div>
+              <div><div class="text-muted small">Median multiple</div><div class="fs-5">{{ r.comp_results._currency_symbol }}{{ "%.2f"|format(val.fair_value_median) }}</div></div>
+            </div>
+            <p class="text-muted small mb-0 mt-2">{{ val.formula_avg }}</p>
+          </div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div></div></div>
+    {% endif %}
+
     {% if r.manual_peer_valuation %}
-    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation</button></h2><div id="tab-rel" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation (Manual Peers)</button></h2><div id="tab-rel" class="accordion-collapse collapse "><div class="accordion-body">
       <p>Average P/E multiple: {{ "%.2f"|format(r.manual_peer_valuation.pe_multiple) }}x → {{ r.csym }}{{ "%.2f"|format(r.manual_peer_valuation.pe_value) }}</p>
       <p>Average EV/EBITDA multiple: {{ "%.2f"|format(r.manual_peer_valuation.ev_ebitda_multiple) }}x → {{ r.csym }}{{ "%.2f"|format(r.manual_peer_valuation.ev_ebitda_value) }}</p>
       <p><strong>Blended average: {{ r.csym }}{{ "%.2f"|format(r.manual_peer_valuation.avg_value) }}</strong></p>

@@ -94,8 +94,18 @@
 
       <div class="card mb-3">
         <div class="card-body">
-          <h6 class="card-title">📊 Manual Peer Comparison</h6>
-          <p class="text-muted small">Screener mode doesn't auto-fetch peers — enter up to 5 manually (name + P/E and/or EV/EBITDA multiple).</p>
+          <h6 class="card-title">📊 Peer / Comparable Companies</h6>
+
+          <label class="form-label">Peer tickers (comma-separated)</label>
+          <div class="input-group mb-1">
+            <input type="text" class="form-control" name="peer_tickers" id="peer_tickers" placeholder="e.g. TCS.NS, INFY.NS">
+            <button type="button" class="btn btn-outline-secondary" onclick="autoFetchScreenerPeers()">🔎 Auto-fetch</button>
+          </div>
+          <div class="form-text">Uses the ticker above to find similar companies on Yahoo Finance, then pulls full P/E, P/B, P/S, EV/EBITDA and EV/Sales multiples for a relative-valuation table — same engine as Listed mode. Include exchange suffix, or click Auto-fetch.</div>
+          <div id="peer-fetch-status" class="form-text"></div>
+
+          <hr class="my-3">
+          <p class="text-muted small mb-2">Or, if you don't have a ticker for the peers (e.g. unlisted comparables), enter up to 5 manually:</p>
           {% for i in range(1, 6) %}
           <div class="row mb-2">
             <div class="col-5">
@@ -180,6 +190,23 @@
 </form>
 
 <script>
+function autoFetchScreenerPeers() {
+  const ticker = document.querySelector('#screener-form input[name="ticker"]').value.trim();
+  const exchange = document.querySelector('#screener-form select[name="exchange"]').value; // already 'NS'/'BO'
+  const statusEl = document.getElementById('peer-fetch-status');
+  if (!ticker) { statusEl.textContent = 'Enter a ticker in "2. Upload & company info" first.'; return; }
+  statusEl.textContent = 'Searching for similar companies...';
+  fetch(`/dcf/listed/auto-peers?ticker=${encodeURIComponent(ticker)}&suffix=${encodeURIComponent(exchange || '')}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { statusEl.textContent = 'Error: ' + d.error; return; }
+      if (!d.peers || d.peers.length === 0) { statusEl.textContent = 'No peers found for this ticker.'; return; }
+      document.getElementById('peer_tickers').value = d.peers.join(', ');
+      statusEl.textContent = `Found ${d.peers.length} peers.`;
+    })
+    .catch(() => { statusEl.textContent = 'Auto-fetch failed.'; });
+}
+
 document.getElementById('screener-form').addEventListener('submit', function () {
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('submit-spinner').classList.remove('d-none');
