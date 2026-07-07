@@ -3533,6 +3533,23 @@ def create_bank_valuation_comparison_chart(valuations_dict):
     
     return fig
 
+def apply_chart_theme(fig):
+    """Apply the app's Times New Roman / paper-and-navy theme to a Plotly
+    figure. Called just before a chart is serialized to JSON for the results
+    templates, so it doesn't need to be threaded through every chart-builder
+    function individually."""
+    if fig is None:
+        return None
+    fig.update_layout(
+        font=dict(family='Times New Roman, Times, Georgia, serif', size=13, color='#1c1c1c'),
+        paper_bgcolor='#faf8f3',
+        plot_bgcolor='#ffffff',
+        title_font=dict(family='Times New Roman, Times, Georgia, serif', size=18),
+        legend=dict(font=dict(family='Times New Roman, Times, Georgia, serif', size=12)),
+    )
+    return fig
+
+
 def create_price_vs_value_gauge(current_price, fair_value):
     """Create gauge chart showing current price vs fair value"""
     # Check for invalid fair value (zero, negative, or unrealistic)

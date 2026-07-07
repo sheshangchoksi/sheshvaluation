@@ -6,10 +6,18 @@ Drop-in replacement / umbrella for ALL yfinance calls in this app.
 HOW IT WORKS
 ------------
 1. curl_cffi Chrome-impersonation session  →  bypasses Yahoo's bot filters
-2. Streamlit @st.cache_data               →  deduplicate identical calls (1-hr TTL)
-3. Exponential back-off with jitter       →  survive transient 429s
-4. In-process LRU memory cache            →  zero-network hits for repeat symbols
-5. Concurrency throttle (1 req/sec)       →  stay under Yahoo's rate budget
+2. Exponential back-off with jitter        →  survive transient 429s
+3. In-process LRU memory cache             →  zero-network hits for repeat symbols
+4. Disk-backed cache (pickle)              →  survives process restarts / Render
+                                               free-tier spin-downs, which wipe
+                                               the in-memory cache
+5. Concurrency throttle                    →  stay under Yahoo's rate budget
+6. Per-symbol circuit breaker              →  stop hammering a symbol that's
+                                               already failing; fail fast instead
+                                               of burning the whole retry budget
+                                               (and the shared rate-limit window)
+                                               on a request that's going to fail
+                                               anyway
 
 HOW TO USE  (two-line migration per file)
 -----------------------------------------
@@ -26,12 +34,22 @@ AFTER:
 Everything else (.info, .financials, .history, .balance_sheet, .cashflow,
 .options, .option_chain …) works exactly the same on the returned object.
 
-HUGGING FACE SPACES NOTES
---------------------------
-• curl_cffi is the #1 fix for HF Spaces / Streamlit Cloud rate limits.
-  Add to requirements.txt:  curl_cffi>=0.6.2
-• The module auto-falls-back to requests if curl_cffi is absent.
-• No secrets or env-vars required — works out of the box.
+TUNING WITHOUT REDEPLOYING
+---------------------------
+Every timing/retry constant below can be overridden with an environment
+variable of the same name (see Render dashboard -> Environment), so you
+can loosen/tighten the throttle without a code change:
+    YF_MIN_DELAY_S, YF_MAX_DELAY_S, YF_MAX_RETRIES, YF_BASE_BACKOFF_S,
+    YF_CACHE_TTL_S, YF_DISK_CACHE_PATH, YF_CIRCUIT_FAIL_THRESHOLD,
+    YF_CIRCUIT_COOLDOWN_S
+
+RENDER FREE-TIER NOTE
+----------------------
+Render's free web services spin down after ~15 min idle and spin back up
+on the next request — this wipes any in-memory cache. The disk cache
+below (instance/yf_cache.pkl by default) is written on every successful
+fetch and reloaded on import, so previously-fetched tickers stay warm
+across a spin-down/spin-up cycle instead of re-hitting Yahoo cold.
 """
 
 from __future__ import annotations
@@ -39,7 +57,9 @@ from __future__ import annotations
 import functools
 import logging
 import os
+import pickle
 import random
+import tempfile
 import threading
 import time
 from typing import Any
@@ -48,7 +68,22 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# ── optional streamlit cache ────────────────────────────────────────────────
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# ── optional streamlit cache (harmless no-op outside Streamlit) ────────────
 try:
     import streamlit as st
     _HAS_ST = True
@@ -66,13 +101,32 @@ except ImportError:
 import yfinance as yf
 
 # ────────────────────────────────────────────────────────────────────────────
-# CONFIG  (tune here if needed)
+# CONFIG  (env-var overridable — see module docstring)
 # ────────────────────────────────────────────────────────────────────────────
-MIN_DELAY_S      = 0.8    # minimum pause between Yahoo requests
-MAX_DELAY_S      = 2.5    # maximum pause (random jitter)
-MAX_RETRIES      = 5      # retry budget per call
-BASE_BACKOFF_S   = 3.0    # base for exponential backoff on 429
-CACHE_TTL_S      = 3600   # in-process cache TTL (1 hour)
+# Yahoo's tolerance has tightened noticeably since curl_cffi's original
+# defaults were tuned; these are deliberately more conservative than the
+# textbook "1 req/sec" figure to leave real headroom before 429s.
+MIN_DELAY_S      = _env_float("YF_MIN_DELAY_S", 2.0)     # minimum pause between Yahoo requests
+MAX_DELAY_S      = _env_float("YF_MAX_DELAY_S", 4.5)     # maximum pause (random jitter)
+MAX_RETRIES      = _env_int("YF_MAX_RETRIES", 4)         # retry budget per call
+BASE_BACKOFF_S   = _env_float("YF_BASE_BACKOFF_S", 6.0)  # base for exponential backoff on 429
+CACHE_TTL_S      = _env_int("YF_CACHE_TTL_S", 6 * 3600)  # in-process + disk cache TTL (6 hours —
+                                                           # fundamentals/financials don't move
+                                                           # intraday, so this is safe for a DCF tool)
+
+# Circuit breaker: if a symbol fails this many times in a row, stop retrying
+# it against Yahoo for the cooldown window and fail fast instead. Protects
+# the shared throttle budget from being spent on a symbol that's currently
+# blocked, which would otherwise slow down/starve every other request too.
+CIRCUIT_FAIL_THRESHOLD = _env_int("YF_CIRCUIT_FAIL_THRESHOLD", 3)
+CIRCUIT_COOLDOWN_S     = _env_int("YF_CIRCUIT_COOLDOWN_S", 120)
+
+DISK_CACHE_PATH = os.environ.get(
+    "YF_DISK_CACHE_PATH",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                 "instance", "yf_cache.pkl"),
+)
+
 _CHROME_UA       = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -80,7 +134,7 @@ _CHROME_UA       = (
 )
 
 # ────────────────────────────────────────────────────────────────────────────
-# RATE-LIMIT GATE  (shared across all threads)
+# RATE-LIMIT GATE  (shared across all threads in this process)
 # ────────────────────────────────────────────────────────────────────────────
 _gate_lock       = threading.Lock()
 _last_request_ts = 0.0
@@ -97,12 +151,53 @@ def _throttle():
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# PER-SYMBOL CIRCUIT BREAKER
+# ────────────────────────────────────────────────────────────────────────────
+_circuit_lock  = threading.Lock()
+_circuit_state: dict[str, dict[str, Any]] = {}  # symbol -> {"fails": int, "opened_at": float}
+
+def _circuit_is_open(symbol: str) -> bool:
+    with _circuit_lock:
+        st_ = _circuit_state.get(symbol)
+        if not st_ or st_["fails"] < CIRCUIT_FAIL_THRESHOLD:
+            return False
+        if time.time() - st_["opened_at"] > CIRCUIT_COOLDOWN_S:
+            # Cooldown elapsed — give it one more try.
+            st_["fails"] = 0
+            return False
+        return True
+
+def _circuit_record_failure(symbol: str):
+    with _circuit_lock:
+        st_ = _circuit_state.setdefault(symbol, {"fails": 0, "opened_at": 0.0})
+        st_["fails"] += 1
+        if st_["fails"] == CIRCUIT_FAIL_THRESHOLD:
+            st_["opened_at"] = time.time()
+            logger.warning(
+                "yf_ratelimit: circuit OPEN for %s after %d consecutive failures "
+                "— failing fast for %ds instead of continuing to retry",
+                symbol, CIRCUIT_FAIL_THRESHOLD, CIRCUIT_COOLDOWN_S,
+            )
+
+def _circuit_record_success(symbol: str):
+    with _circuit_lock:
+        if symbol in _circuit_state:
+            _circuit_state[symbol] = {"fails": 0, "opened_at": 0.0}
+
+
+class CircuitOpenError(RuntimeError):
+    """Raised when a symbol's circuit breaker is open (too many recent
+    failures) instead of spending more of the retry/rate-limit budget on it."""
+    pass
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # SESSION FACTORY
 # ────────────────────────────────────────────────────────────────────────────
 def _make_session():
     """
     Return a curl_cffi Chrome-impersonation session (or a plain requests
-    session as fallback).  A fresh session is created each time so that
+    session as fallback). A fresh session is created each time so that
     Yahoo can't track connection state across symbols.
     """
     if _HAS_CURL:
@@ -131,10 +226,50 @@ def _make_session():
 
 
 # ────────────────────────────────────────────────────────────────────────────
-# IN-PROCESS MEMORY CACHE  (survives across Streamlit reruns in same process)
+# IN-PROCESS MEMORY CACHE + DISK-BACKED PERSISTENCE
 # ────────────────────────────────────────────────────────────────────────────
+# The in-memory dict is fast; the disk file makes fetched data survive a
+# process restart (e.g. Render free-tier spin-down/spin-up, or a redeploy)
+# instead of forcing every symbol to be re-fetched from Yahoo cold.
 _mem_cache: dict[str, tuple[float, Any]] = {}
 _cache_lock = threading.Lock()
+_disk_dirty = False
+
+
+def _load_disk_cache():
+    global _mem_cache
+    try:
+        if os.path.exists(DISK_CACHE_PATH):
+            with open(DISK_CACHE_PATH, "rb") as f:
+                data = pickle.load(f)
+            if isinstance(data, dict):
+                now = time.time()
+                # Drop anything already past TTL so we don't resurrect stale data.
+                _mem_cache = {k: v for k, v in data.items() if (now - v[0]) < CACHE_TTL_S}
+                logger.info("yf_ratelimit: loaded %d cached entries from disk (%s)",
+                            len(_mem_cache), DISK_CACHE_PATH)
+    except Exception as e:
+        logger.warning("yf_ratelimit: could not load disk cache (%s): %s", DISK_CACHE_PATH, e)
+
+
+def _save_disk_cache():
+    """Atomic write (temp file + rename) so a crash mid-write can't corrupt
+    the cache file."""
+    try:
+        os.makedirs(os.path.dirname(DISK_CACHE_PATH), exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=os.path.dirname(DISK_CACHE_PATH), prefix=".yf_cache_", suffix=".tmp"
+        )
+        with os.fdopen(fd, "wb") as f:
+            with _cache_lock:
+                pickle.dump(_mem_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp_path, DISK_CACHE_PATH)
+    except Exception as e:
+        logger.warning("yf_ratelimit: could not save disk cache (%s): %s", DISK_CACHE_PATH, e)
+
+
+_load_disk_cache()
+
 
 def _mem_get(key: str) -> Any | None:
     with _cache_lock:
@@ -146,9 +281,13 @@ def _mem_get(key: str) -> Any | None:
 def _mem_set(key: str, value: Any):
     with _cache_lock:
         _mem_cache[key] = (time.time(), value)
+    # Fire-and-forget disk write so cold-start recovery works. Cheap relative
+    # to the network round-trip we just made, and infrequent (once per
+    # distinct symbol/property per TTL window) so it isn't a hot path.
+    threading.Thread(target=_save_disk_cache, daemon=True).start()
 
 def clear_cache(symbol: str | None = None):
-    """Clear in-process cache.  Pass symbol to clear only that ticker."""
+    """Clear in-process + disk cache. Pass symbol to clear only that ticker."""
     with _cache_lock:
         if symbol:
             keys = [k for k in _mem_cache if k.startswith(symbol)]
@@ -156,6 +295,7 @@ def clear_cache(symbol: str | None = None):
                 _mem_cache.pop(k, None)
         else:
             _mem_cache.clear()
+    _save_disk_cache()
     logger.info("yf_ratelimit: cache cleared%s",
                 f" for {symbol}" if symbol else " (all)")
 
@@ -163,11 +303,23 @@ def clear_cache(symbol: str | None = None):
 # ────────────────────────────────────────────────────────────────────────────
 # RETRY DECORATOR  (wraps any callable that talks to Yahoo)
 # ────────────────────────────────────────────────────────────────────────────
-def _with_retry(fn, *args, **kwargs):
+def _with_retry(fn, *args, symbol: str | None = None, **kwargs):
     """
     Call fn(*args, **kwargs) with throttle + exponential backoff on errors.
     Returns the result or raises the last exception after MAX_RETRIES.
+
+    If `symbol` is given and its circuit breaker is open (too many recent
+    consecutive failures), raises CircuitOpenError immediately without
+    touching the network or the shared throttle budget.
     """
+    if symbol and _circuit_is_open(symbol):
+        raise CircuitOpenError(
+            f"{symbol}: too many recent Yahoo Finance failures — pausing "
+            f"requests for this symbol for up to {CIRCUIT_COOLDOWN_S}s before "
+            f"retrying. If this persists, Yahoo may be rate-limiting this "
+            f"server's IP; try Screener Excel Mode instead for Indian tickers."
+        )
+
     last_exc = None
     for attempt in range(MAX_RETRIES):
         _throttle()
@@ -184,16 +336,22 @@ def _with_retry(fn, *args, **kwargs):
                 logger.warning("yf_ratelimit: empty DataFrame on attempt %d — retrying", attempt + 1)
                 last_exc = RuntimeError("Empty DataFrame returned (possible silent 429)")
                 continue
+            if symbol:
+                _circuit_record_success(symbol)
             return result
         except Exception as exc:
             last_exc = exc
             msg = str(exc).lower()
-            is_rate = any(x in msg for x in ("429", "rate", "too many", "forbidden", "403"))
+            is_rate = any(x in msg for x in ("429", "rate", "too many", "forbidden", "403", "crumb"))
             if not is_rate:
                 # Non-rate-limit error — don't keep retrying
+                if symbol:
+                    _circuit_record_failure(symbol)
                 raise
             logger.warning("yf_ratelimit: rate-limit hit on attempt %d: %s", attempt + 1, exc)
 
+    if symbol:
+        _circuit_record_failure(symbol)
     raise last_exc or RuntimeError("yf_ratelimit: all retries exhausted")
 
 
@@ -203,8 +361,8 @@ def _with_retry(fn, *args, **kwargs):
 
 class _CachedTicker:
     """
-    Lazy, cached wrapper around yf.Ticker.  All property accesses are
-    cached in-process and retried on rate-limit errors.
+    Lazy, cached wrapper around yf.Ticker. All property accesses are
+    cached in-process + on disk, and retried on rate-limit errors.
     """
     _PROPS = ("info", "financials", "income_stmt", "balance_sheet",
               "cashflow", "quarterly_financials", "quarterly_income_stmt",
@@ -236,7 +394,7 @@ class _CachedTicker:
         def _do():
             return getattr(self._get_yf(), prop)
 
-        result = _with_retry(_do)
+        result = _with_retry(_do, symbol=self._symbol)
         _mem_set(key, result)
         return result
 
@@ -259,7 +417,7 @@ class _CachedTicker:
         def _do():
             return self._get_yf().history(period=period, interval=interval, **kwargs)
 
-        result = _with_retry(_do)
+        result = _with_retry(_do, symbol=self._symbol)
         _mem_set(key, result)
         return result
 
@@ -273,7 +431,7 @@ class _CachedTicker:
         def _do():
             return self._get_yf().option_chain(date) if date else self._get_yf().option_chain()
 
-        result = _with_retry(_do)
+        result = _with_retry(_do, symbol=self._symbol)
         _mem_set(key, result)
         return result
 
@@ -293,7 +451,7 @@ def safe_ticker(symbol: str) -> _CachedTicker:
     """
     Drop-in for yf.Ticker(symbol).
 
-    Returns a cached, rate-limit-aware wrapper.  The same object is
+    Returns a cached, rate-limit-aware wrapper. The same object is
     reused across all calls with the same symbol within a process.
 
     Usage:
@@ -321,7 +479,7 @@ def safe_download(
     Extra args vs yf.download:
         flatten (bool): If True (default), flatten MultiIndex columns to
                         single-level "Close", "Open" … instead of
-                        ("Close", "AAPL") etc.  Matches pre-0.2 behaviour.
+                        ("Close", "AAPL") etc. Matches pre-0.2 behaviour.
 
     Usage:
         from yf_ratelimit import safe_download
@@ -346,7 +504,7 @@ def safe_download(
             **kwargs,
         )
 
-    df = _with_retry(_do)
+    df = _with_retry(_do, symbol=ticker_key)
 
     # Flatten MultiIndex columns (yfinance >= 0.2 wraps single-ticker downloads too)
     if flatten and isinstance(df.columns, pd.MultiIndex):
@@ -365,12 +523,12 @@ def safe_download(
 if _HAS_ST:
     @st.cache_data(ttl=CACHE_TTL_S, show_spinner=False)
     def st_download(tickers, period="1mo", interval="1d", **kwargs) -> pd.DataFrame:
-        """st.cache_data-backed version of safe_download.  Use this in Streamlit pages."""
+        """st.cache_data-backed version of safe_download. Use this in Streamlit pages."""
         return safe_download(tickers, period=period, interval=interval, **kwargs)
 
     @st.cache_data(ttl=CACHE_TTL_S, show_spinner=False)
     def st_ticker_info(symbol: str) -> dict:
-        """st.cache_data-backed .info fetch.  Fast for repeated Streamlit reruns."""
+        """st.cache_data-backed .info fetch. Fast for repeated Streamlit reruns."""
         return safe_ticker(symbol).info
 
     @st.cache_data(ttl=CACHE_TTL_S, show_spinner=False)
@@ -385,6 +543,7 @@ if _HAS_ST:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("curl_cffi available:", _HAS_CURL)
+    print("disk cache path:", DISK_CACHE_PATH)
 
     print("\n— safe_ticker test —")
     t = safe_ticker("RELIANCE.NS")
