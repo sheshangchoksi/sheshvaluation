@@ -1,0 +1,65 @@
+# Web framework (replaces Streamlit)
+Flask>=3.0.0
+Flask-Login>=0.6.3
+Flask-Caching>=2.1.0
+Flask-SQLAlchemy>=3.1.0
+Flask-Migrate>=4.0.5
+psycopg2-binary>=2.9.9
+argon2-cffi>=23.1.0
+gunicorn>=21.2.0
+python-dotenv>=1.0.0
+
+# Core Web Scraping & Data Fetching
+requests>=2.31.0
+urllib3>=1.26.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+html5lib>=1.1
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+xlrd>=2.0.1
+
+# Financial Data
+yfinance>=0.2.32
+curl_cffi>=0.6.2
+ta>=0.11.0
+
+# Visualization (Plotly figures serialized to JSON, rendered client-side with Plotly.js)
+plotly>=5.17.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+kaleido>=0.2.1
+
+# Document Generation
+reportlab>=4.0.0
+python-docx>=1.1.0
+python-pptx>=0.6.21
+PyPDF2>=3.0.0
+pdfplumber>=0.10.0
+pypdf>=3.17.0
+
+# Database (only if/when Phase 8 persistence lands; harmless if unused)
+sqlalchemy>=2.0.0
+
+# Utilities
+pytz>=2023.3
+python-dateutil>=2.8.0
+qrcode>=7.4.2
+pillow>=10.0.0
+tabulate>=0.9.0
+cachetools>=5.3.0
+numpy-financial>=1.0.0
+pydantic>=2.0.0
+jsonschema>=4.17.0
+tzdata>=2023.3
+PyYAML>=6.0
+et-xmlfile>=1.1.0
+colorama>=0.4.6
+
+# Removed: streamlit, streamlit-aggrid (framework being replaced),
+# nsepy (confirmed unused by any module), rich/tqdm (progress bars were
+# a console/notebook convenience, not used in the web app path)

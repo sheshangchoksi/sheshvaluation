@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}{{ r.company_name }} — Bank/NBFC Valuation{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-0">{{ r.company_name }} <span class="badge bg-secondary">Bank/NBFC</span></h4>
+    <small class="text-muted">Shares outstanding: {{ "{:,}".format(r.shares) }}</small>
+  </div>
+  <a href="{{ url_for('dcf.listed_form') if mode == 'listed' else (url_for('dcf.unlisted_form') if mode == 'unlisted' else url_for('dcf.screener_form')) }}" class="btn btn-outline-secondary btn-sm">New analysis</a>
+</div>
+
+<div class="alert alert-secondary">
+  Classified as a bank/NBFC/interest-dominant entity — using
+  <strong>FCFE (Free Cash Flow to Equity)</strong> discounted at Cost of
+  Equity, not standard FCFF/WACC, since debt is raw material for banks
+  rather than financing.
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-center"><div class="card-body">
+      <div class="text-muted small">Bank FCFE Fair Value</div>
+      <div class="fs-4">{{ r.csym }}{{ "%.2f"|format(r.fcfe_valuation.fair_value_per_share) }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center"><div class="card-body">
+      <div class="text-muted small">RIM</div>
+      <div class="fs-4">{{ r.csym }}{{ "%.2f"|format(r.rim_result.value_per_share) if r.rim_result and r.rim_result.get('value_per_share') else 'N/A' }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center"><div class="card-body">
+      <div class="text-muted small">DDM</div>
+      <div class="fs-4">{{ r.csym }}{{ "%.2f"|format(r.ddm_result.value_per_share) if r.ddm_result and r.ddm_result.get('value_per_share') else 'N/A' }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center"><div class="card-body">
+      <div class="text-muted small">P/B-ROE</div>
+      <div class="fs-4">{{ r.csym }}{{ "%.2f"|format(r.pb_roe_result.value_per_share) if r.pb_roe_result and r.pb_roe_result.get('value_per_share') else 'N/A' }}</div>
+    </div></div>
+  </div>
+</div>
+
+{% if r.charts.comparison %}<div id="chart-comparison" class="mb-4"></div>{% endif %}
+
+<div class="accordion" id="resultsAccordion">
+  <div class="accordion-item">
+    <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#tab-fcfe">Bank FCFE</button></h2>
+    <div id="tab-fcfe" class="accordion-collapse collapse show" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <table class="table table-sm">
+      <tbody>
+        <tr><td>Sum of PV(FCFE)</td><td>{{ r.csym }}{{ "%.2f"|format(r.fcfe_valuation.sum_pv_fcfe) }} Lacs</td></tr>
+        <tr><td>PV(Terminal Value)</td><td>{{ r.csym }}{{ "%.2f"|format(r.fcfe_valuation.terminal_value_pv) }} Lacs</td></tr>
+        <tr><td>Equity Value</td><td>{{ r.csym }}{{ "%.2f"|format(r.fcfe_valuation.equity_value) }} Lacs</td></tr>
+        <tr class="table-active"><td><strong>Fair Value per Share</strong></td><td><strong>{{ r.csym }}{{ "%.2f"|format(r.fcfe_valuation.fair_value_per_share) }}</strong></td></tr>
+        <tr><td>Sustainable Growth Rate</td><td>{{ "%.2f"|format(r.fcfe_valuation.sustainable_growth) }}%</td></tr>
+      </tbody>
+    </table>
+    <table class="table table-sm mt-3">
+      <thead><tr><th>Year</th><th>Revenue (Advances proxy)</th><th>PAT</th><th>Equity</th><th>FCFE</th></tr></thead>
+      <tbody>
+        {% for i in range(r.projections.year|length) %}
+        <tr>
+          <td>{{ r.projections.year[i] }}</td>
+          <td>{{ "%.2f"|format(r.projections.revenue[i]) }}</td>
+          <td>{{ "%.2f"|format(r.projections.pat[i]) }}</td>
+          <td>{{ "%.2f"|format(r.projections.equity[i]) }}</td>
+          <td>{{ "%.2f"|format(r.projections.fcfe[i]) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="text-muted small">Advances growth: {{ "%.2f"|format(r.drivers.revenue_growth) }}% | ROE: {{ "%.2f"|format(r.drivers.roe) }}% | CAR target: {{ "%.1f"|format(r.drivers.car_ratio) }}% | RWA weight: {{ "%.1f"|format(r.drivers.rwa_percentage) }}%</p>
+    </div></div>
+  </div>
+
+  <div class="accordion-item">
+    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-wacc">Cost of Funds</button></h2>
+    <div id="tab-wacc" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <p class="mb-1">Risk-free Rate (Rf): <strong>{{ "%.2f"|format(r.wacc_details.rf) }}%</strong></p>
+    <p class="mb-1">Market Return (Rm): <strong>{{ "%.2f"|format(r.wacc_details.rm) }}%</strong></p>
+    <p class="mb-1">Beta (β): <strong>{{ "%.3f"|format(r.wacc_details.beta) }}</strong></p>
+    <p class="mb-1">Cost of Equity (Ke): <strong>{{ "%.2f"|format(r.wacc_details.ke) }}%</strong></p>
+    <p class="mb-1">Cost of Funds (Kd, bank methodology): <strong>{{ "%.2f"|format(r.wacc_details.kd) }}%</strong></p>
+    <p class="text-muted small">Kd = Interest Expended ÷ Average Interest-Bearing Liabilities (not a simple debt ratio — that's wrong for banks).</p>
+    </div></div>
+  </div>
+
+  <div class="accordion-item">
+    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-hist">Historical</button></h2>
+    <div id="tab-hist" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    <div id="chart-hist"></div>
+    <table class="table table-sm mt-3">
+      <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>NOPAT</th><th>Equity</th></tr></thead>
+      <tbody>
+        {% for i in range(r.financials.years|length) %}
+        <tr>
+          <td>{{ r.financials.years[i] }}</td>
+          <td>{{ "%.2f"|format(r.financials.revenue[i]) }}</td>
+          <td>{{ "%.2f"|format(r.financials.ebitda[i]) }}</td>
+          <td>{{ "%.2f"|format(r.financials.nopat[i]) }}</td>
+          <td>{{ "%.2f"|format(r.financials.equity[i]) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div></div>
+  </div>
+
+  <div class="accordion-item">
+    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-pbroe">P/B-ROE</button></h2>
+    <div id="tab-pbroe" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+    {% if r.pb_roe_result %}
+      <p class="mb-1">Book Value per Share: {{ r.csym }}{{ "%.2f"|format(r.pb_roe_result.book_value_per_share) }}</p>
+      <p class="mb-1">ROE: {{ "%.2f"|format(r.pb_roe_result.roe) }}%</p>
+      <p class="mb-1">Fair P/B Ratio (ROE ÷ Ke): {{ "%.2f"|format(r.pb_roe_result.fair_pb_ratio) }}x</p>
+      <p>Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.pb_roe_result.value_per_share) }}</strong></p>
+    {% else %}
+      <div class="alert alert-warning">P/B-ROE valuation not available.</div>
+    {% endif %}
+    </div></div>
+  </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.32.0/plotly.min.js"></script>
+<script>
+  const charts = {{ r.charts | tojson }};
+  const plotDefaults = {responsive: true};
+  function draw(divId, key) {
+    if (charts[key]) {
+      const fig = JSON.parse(charts[key]);
+      Plotly.newPlot(divId, fig.data, fig.layout, plotDefaults);
+    }
+  }
+  draw('chart-hist', 'historical');
+  draw('chart-comparison', 'comparison');
+</script>
+{% endblock %}

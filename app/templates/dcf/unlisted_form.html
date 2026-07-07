@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Unlisted Company Valuation{% endblock %}
+{% block content %}
+<h4 class="mb-3">📄 Unlisted Company Valuation</h4>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">1. Download the template, fill it in</h6>
+    <p class="text-muted small mb-2">Two sheets: BalanceSheet and Profit&amp;Loss. Enter figures for at least 2 years (3 columns are pre-labelled but you can add more).</p>
+    <a href="{{ url_for('dcf.unlisted_template') }}" class="btn btn-outline-secondary btn-sm">📥 Download Excel Template</a>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('dcf.unlisted_analyze') }}" enctype="multipart/form-data" id="unlisted-form">
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">2. Upload &amp; company info</h6>
+          <div class="mb-3">
+            <label class="form-label">Company Name</label>
+            <input type="text" class="form-control" name="company_name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Upload Financial Excel Template</label>
+            <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Peer tickers (optional, comma-separated, with exchange suffix)</label>
+            <div class="input-group">
+              <input type="text" class="form-control" name="peer_tickers" id="peer_tickers" placeholder="e.g. RELIANCE.NS, TCS.NS">
+              <button type="button" class="btn btn-outline-secondary" onclick="autoFetchPeers()">🔎 Auto-fetch</button>
+            </div>
+            <div class="form-text">Used for beta proxy and relative valuation.</div>
+            <div class="row mt-2">
+              <div class="col-8">
+                <input type="text" class="form-control form-control-sm" id="reference_ticker" placeholder="Reference ticker (a similar listed company, e.g. RELIANCE)">
+              </div>
+              <div class="col-4">
+                <select class="form-select form-select-sm" id="reference_exchange">
+                  <option value="NS" selected>NSE</option>
+                  <option value="BO">BSE</option>
+                  <option value="">Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-text">Since this company has no ticker of its own, auto-fetch works off a similar listed company you name above.</div>
+            <div id="peer-fetch-status" class="form-text"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">🏛️ Risk-Free &amp; Market Return</h6>
+          <div class="row align-items-end">
+            <div class="col-7 mb-2">
+              <label class="form-label small">Fetch Rf from ticker</label>
+              <input type="text" class="form-control form-control-sm" id="rf_ticker" value="NIFTYGS10YR.NS">
+            </div>
+            <div class="col-5 mb-2">
+              <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="fetchRate('rf')">🔄 Fetch</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Risk-Free Rate (%)</label>
+            <input type="number" step="0.1" class="form-control" name="manual_rf_rate" id="manual_rf_rate" value="6.83">
+          </div>
+          <div class="row align-items-end">
+            <div class="col-7 mb-2">
+              <label class="form-label small">Fetch Rm from ticker</label>
+              <input type="text" class="form-control form-control-sm" id="rm_ticker" value="%5EBSESN">
+            </div>
+            <div class="col-5 mb-2">
+              <button type="button" class="btn btn-sm btn-outline-primary w-100" onclick="fetchRate('rm')">🔄 Fetch</button>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label">Market Return (%)</label>
+            <input type="number" step="0.1" class="form-control" name="manual_rm_rate" id="manual_rm_rate" value="12.0">
+          </div>
+          <div id="rate-fetch-status" class="form-text"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">Core Assumptions</h6>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Shares Outstanding</label>
+              <input type="number" class="form-control" name="num_shares" value="100" min="1">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Tax Rate (%)</label>
+              <input type="number" step="0.5" class="form-control" name="tax_rate" value="25.0">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Historical Years</label>
+              <input type="number" class="form-control" name="historical_years" value="3" min="2" max="10">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Projection Years</label>
+              <input type="number" class="form-control" name="projection_years" value="5" min="3" max="15">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Terminal Growth Rate (%)</label>
+            <input type="number" step="0.5" class="form-control" name="terminal_growth" value="4.0">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Manual Discount Rate Override (%)</label>
+            <input type="number" step="0.5" class="form-control" name="manual_discount_rate" value="0">
+            <div class="form-text">0 = use auto-calculated WACC.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">Valuation Models to Run</h6>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="run_dcf" id="run_dcf" checked>
+            <label class="form-check-label" for="run_dcf">DCF (FCFF)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="run_rim" id="run_rim" checked>
+            <label class="form-check-label" for="run_rim">RIM (Residual Income)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="run_comp" id="run_comp" checked>
+            <label class="form-check-label" for="run_comp">Comparative Valuation (needs peer tickers)</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="accordion mb-3" id="advancedAccordion">
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#advPanel">
+          ⚙️ Advanced Projection Assumptions — Full Control
+        </button>
+      </h2>
+      <div id="advPanel" class="accordion-collapse collapse">
+        <div class="accordion-body">
+          <p class="text-muted small">Leave any field at 0 for auto-calculation from historical data.</p>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Revenue Growth (%/year)</label>
+              <input type="number" step="0.5" class="form-control" name="rev_growth_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Operating Expense Margin (%)</label>
+              <input type="number" step="0.5" class="form-control" name="opex_margin_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">EBITDA Margin (%)</label>
+              <input type="number" step="0.5" class="form-control" name="ebitda_margin_override" value="0">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">CapEx / Revenue (%)</label>
+              <input type="number" step="0.5" class="form-control" name="capex_ratio_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Depreciation Rate (%)</label>
+              <input type="number" step="0.5" class="form-control" name="depreciation_rate_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Depreciation Method</label>
+              <select class="form-select" name="depreciation_method">
+                <option>Auto</option>
+                <option>% of Fixed Assets</option>
+                <option>% of Revenue</option>
+                <option>Absolute Value</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Inventory Days</label>
+              <input type="number" step="1" class="form-control" name="inventory_days_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Debtor/Receivables Days</label>
+              <input type="number" step="1" class="form-control" name="debtor_days_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Creditor/Payables Days</label>
+              <input type="number" step="1" class="form-control" name="creditor_days_override" value="0">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Interest Rate (%)</label>
+              <input type="number" step="0.25" class="form-control" name="interest_rate_override" value="0">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">Working Capital % of Revenue</label>
+              <input type="number" step="0.5" class="form-control" name="working_capital_pct_override" value="0">
+            </div>
+          </div>
+          <div class="alert alert-info small mb-0">
+            Not yet ported: setting a different growth/margin for each individual
+            projected year (the old app's year-by-year grid). The single override
+            above applies to every projected year uniformly.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rimPanel">
+          💎 RIM Parameters — Leave at 0 for Auto
+        </button>
+      </h2>
+      <div id="rimPanel" class="accordion-collapse collapse">
+        <div class="accordion-body">
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <label class="form-label">Required Return (%)</label>
+              <input type="number" step="0.5" class="form-control" name="rim_required_return" value="0">
+              <div class="form-text">0 = use calculated Ke.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label">Assumed ROE (%)</label>
+              <input type="number" step="0.5" class="form-control" name="rim_assumed_roe" value="0">
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label">RIM Terminal Growth (%)</label>
+              <input type="number" step="0.5" class="form-control" name="rim_terminal_growth" value="0">
+              <div class="form-text">0 = same as DCF terminal growth.</div>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label class="form-label">RIM Projection Years</label>
+              <input type="number" step="1" class="form-control" name="rim_projection_years" value="0">
+              <div class="form-text">0 = same as DCF projection years.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary" id="submit-btn">🚀 Run DCF Valuation</button>
+  <span id="submit-spinner" class="spinner-border spinner-border-sm text-primary ms-2 d-none" role="status"></span>
+</form>
+
+<script>
+function autoFetchPeers() {
+  const ticker = document.getElementById('reference_ticker').value.trim();
+  const suffix = document.getElementById('reference_exchange').value;
+  const statusEl = document.getElementById('peer-fetch-status');
+  if (!ticker) { statusEl.textContent = 'Enter a reference ticker first.'; return; }
+  statusEl.textContent = 'Searching for similar companies...';
+  fetch(`/dcf/listed/auto-peers?ticker=${encodeURIComponent(ticker)}&suffix=${encodeURIComponent(suffix)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) { statusEl.textContent = 'Error: ' + d.error; return; }
+      if (!d.peers || d.peers.length === 0) { statusEl.textContent = 'No peers found.'; return; }
+      document.getElementById('peer_tickers').value = d.peers.join(', ');
+      statusEl.textContent = `Found ${d.peers.length} peers.`;
+    })
+    .catch(() => { statusEl.textContent = 'Auto-fetch failed.'; });
+}
+
+function fetchRate(kind) {
+  const tickerEl = document.getElementById(kind + '_ticker');
+  const rateEl = document.getElementById('manual_' + kind + '_rate');
+  const statusEl = document.getElementById('rate-fetch-status');
+  statusEl.textContent = 'Fetching...';
+  fetch(`/dcf/unlisted/fetch-rate?kind=${kind}&ticker=${encodeURIComponent(tickerEl.value)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        statusEl.textContent = 'Error: ' + d.error;
+        return;
+      }
+      rateEl.value = d.rate;
+      statusEl.textContent = `Fetched ${kind.toUpperCase()} = ${d.rate}%`;
+    })
+    .catch(() => { statusEl.textContent = 'Fetch failed — check the ticker.'; });
+}
+
+document.getElementById('unlisted-form').addEventListener('submit', function () {
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-spinner').classList.remove('d-none');
+});
+</script>
+{% endblock %}

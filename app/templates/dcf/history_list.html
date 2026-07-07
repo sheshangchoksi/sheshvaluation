@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Valuation History{% endblock %}
+{% block content %}
+<h4 class="mb-3">📜 Valuation History</h4>
+{% if not entries %}
+<p class="text-muted">No valuations run yet.</p>
+{% else %}
+<table class="table table-sm table-hover">
+  <thead><tr><th>Date</th><th>Mode</th><th>Company</th><th>Fair Value</th><th>Current Price</th><th>WACC</th></tr></thead>
+  <tbody>
+    {% for e in entries %}
+    <tr onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'" style="cursor:pointer">
+      <td>{{ e.created_at.strftime('%d %b %Y, %H:%M') }}</td>
+      <td><span class="badge bg-secondary">{{ e.mode }}{{ ' (bank)' if e.is_bank_valuation else '' }}</span></td>
+      <td>{{ e.company_name }}</td>
+      <td>{{ "%.2f"|format(e.fair_value_per_share) if e.fair_value_per_share else '—' }}</td>
+      <td>{{ "%.2f"|format(e.current_price) if e.current_price else '—' }}</td>
+      <td>{{ "%.2f"|format(e.wacc) + '%' if e.wacc else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

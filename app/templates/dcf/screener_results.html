@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}{{ r.company_name }} — Valuation{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="mb-0">{{ r.company_name }}</h4>
+    <small class="text-muted">Shares outstanding: {{ "{:,}".format(r.shares) }} ({{ r.shares_source }}){% if r.current_price %} | Current price: {{ r.csym }}{{ "%.2f"|format(r.current_price) }}{% endif %}</small>
+  </div>
+  <a href="{{ url_for('dcf.screener_form') }}" class="btn btn-outline-secondary btn-sm">New analysis</a>
+  <a href="{{ url_for('dcf.download_pdf', result_id=result_id) }}" class="btn btn-outline-primary btn-sm ms-2">📄 Download PDF</a>
+</div>
+
+{% if r.bank_notice %}
+  <div class="alert alert-info">
+    <strong>Business model classification:</strong> {{ r.classification.get('classification', 'Interest-dominant entity') }}
+    <hr>
+    {{ r.bank_notice }}
+  </div>
+  <p><a href="{{ url_for('dcf.screener_form') }}" class="btn btn-outline-primary">Try again</a></p>
+{% else %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card text-center"><div class="card-body">
+        <div class="text-muted small">Fair Value per Share (DCF)</div>
+        <div class="fs-4">{{ r.csym }}{{ "%.2f"|format(r.valuation.fair_value_per_share) }}</div>
+      </div></div>
+    </div>
+    <div class="col-md-4">
+      <div class="card text-center"><div class="card-body">
+        <div class="text-muted small">WACC</div>
+        <div class="fs-4">{{ "%.2f"|format(r.wacc_details.wacc) }}%</div>
+      </div></div>
+    </div>
+    {% if r.rim_result and r.rim_result.get('value_per_share', 0) > 0 %}
+    <div class="col-md-4">
+      <div class="card text-center"><div class="card-body">
+        <div class="text-muted small">Fair Value per Share (RIM)</div>
+        <div class="fs-4">{{ r.csym }}{{ "%.2f"|format(r.rim_result.value_per_share) }}</div>
+      </div></div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="accordion" id="resultsAccordion">
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button " type="button" data-bs-toggle="collapse" data-bs-target="#tab-hist">Historical</button></h2><div id="tab-hist" class="accordion-collapse collapse show" data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="chart-hist"></div>
+      <table class="table table-sm mt-3">
+        <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>EBIT</th><th>NOPAT</th></tr></thead>
+        <tbody>
+          {% for i in range(r.financials.years|length) %}
+          <tr>
+            <td>{{ r.financials.years[i] }}</td>
+            <td>{{ "%.2f"|format(r.financials.revenue[i]) }}</td>
+            <td>{{ "%.2f"|format(r.financials.ebitda[i]) }}</td>
+            <td>{{ "%.2f"|format(r.financials.ebit[i]) }}</td>
+            <td>{{ "%.2f"|format(r.financials.nopat[i]) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="text-muted small">Figures in Rs. Crores (Screener.in convention).</p>
+    </div></div></div>
+
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-proj">Projections</button></h2><div id="tab-proj" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="chart-proj"></div>
+      <table class="table table-sm mt-3">
+        <thead><tr><th>Year</th><th>Revenue</th><th>EBITDA</th><th>NOPAT</th><th>Capex</th><th>FCFF</th></tr></thead>
+        <tbody>
+          {% for i in range(r.projections.year|length) %}
+          <tr>
+            <td>{{ r.projections.year[i] }}</td>
+            <td>{{ "%.2f"|format(r.projections.revenue[i]) }}</td>
+            <td>{{ "%.2f"|format(r.projections.ebitda[i]) }}</td>
+            <td>{{ "%.2f"|format(r.projections.nopat[i]) }}</td>
+            <td>{{ "%.2f"|format(r.projections.capex[i]) }}</td>
+            <td>{{ "%.2f"|format(r.projections.fcff[i]) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div></div></div>
+
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-wacc">WACC</button></h2><div id="tab-wacc" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="chart-wacc"></div>
+      <div class="row mt-3">
+        <div class="col-md-6">
+          <p class="mb-1">Risk-free Rate (Rf): <strong>{{ "%.2f"|format(r.wacc_details.rf) }}%</strong></p>
+          <p class="mb-1">Market Return (Rm): <strong>{{ "%.2f"|format(r.wacc_details.rm) }}%</strong></p>
+          <p class="mb-1">Beta (β): <strong>{{ "%.3f"|format(r.wacc_details.beta) }}</strong> <span class="text-muted small">(default — no peer beta in Screener mode)</span></p>
+          <p>Ke = <strong>{{ "%.2f"|format(r.wacc_details.ke) }}%</strong></p>
+        </div>
+        <div class="col-md-6">
+          <p class="mb-1">Kd (after-tax): <strong>{{ "%.2f"|format(r.wacc_details.kd_after_tax) }}%</strong></p>
+          <p class="mb-1">Equity/Debt Weight: {{ "%.1f"|format(r.wacc_details.we) }}% / {{ "%.1f"|format(r.wacc_details.wd) }}%</p>
+          <p>WACC = <strong>{{ "%.2f"|format(r.wacc_details.wacc) }}%</strong></p>
+        </div>
+      </div>
+    </div></div></div>
+
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-dcf">DCF Summary</button></h2><div id="tab-dcf" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <div id="chart-waterfall"></div>
+      <table class="table table-sm mt-3">
+        <tbody>
+          <tr><td>Sum of PV(FCFF)</td><td>{{ r.csym }}{{ "%.2f"|format(r.valuation.sum_pv_fcff) }} Cr</td></tr>
+          <tr><td>PV(Terminal Value)</td><td>{{ r.csym }}{{ "%.2f"|format(r.valuation.pv_terminal_value) }} Cr</td></tr>
+          <tr><td>Enterprise Value</td><td>{{ r.csym }}{{ "%.2f"|format(r.valuation.enterprise_value) }} Cr</td></tr>
+          <tr><td>Less: Net Debt</td><td>{{ r.csym }}{{ "%.2f"|format(r.valuation.net_debt) }} Cr</td></tr>
+          <tr><td>Equity Value</td><td>{{ r.csym }}{{ "%.2f"|format(r.valuation.equity_value) }} Cr</td></tr>
+          <tr class="table-active"><td><strong>Fair Value per Share</strong></td><td><strong>{{ r.csym }}{{ "%.2f"|format(r.valuation.fair_value_per_share) }}</strong></td></tr>
+        </tbody>
+      </table>
+    </div></div></div>
+
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-ddm">DDM</button></h2><div id="tab-ddm" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      {% if r.ddm_result and r.ddm_result.get('status') == 'Success' %}
+        <p class="fs-5">Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.ddm_result.value_per_share) }}</strong></p>
+        <p class="mb-1">Latest DPS: {{ r.csym }}{{ "%.2f"|format(r.ddm_result.latest_dps) }} | Historical Growth: {{ "%.2f"|format(r.ddm_result.historical_growth_rate * 100) }}% | Required Return: {{ "%.2f"|format(r.ddm_result.required_return * 100) }}%</p>
+      {% else %}
+        <div class="alert alert-warning">{{ r.ddm_result.message if r.ddm_result else 'DDM not applicable.' }}</div>
+      {% endif %}
+    </div></div></div>
+
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rim">RIM</button></h2><div id="tab-rim" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      {% if r.rim_result and r.rim_result.get('status') == 'Success' %}
+        <p class="fs-5">Fair Value per Share: <strong>{{ r.csym }}{{ "%.2f"|format(r.rim_result.value_per_share) }}</strong></p>
+        <p class="mb-1">Book Value: {{ r.csym }}{{ "%.2f"|format(r.rim_result.book_value) }} Lacs | Avg ROE: {{ "%.2f"|format(r.rim_result.avg_roe * 100) }}% | Required Return: {{ "%.2f"|format(r.rim_result.required_return * 100) }}%</p>
+      {% else %}
+        <div class="alert alert-warning">{{ r.rim_result.message if r.rim_result else 'RIM not applicable.' }}</div>
+      {% endif %}
+    </div></div></div>
+
+    {% if r.manual_peer_valuation %}
+    <div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#tab-rel">Relative Valuation</button></h2><div id="tab-rel" class="accordion-collapse collapse " data-bs-parent="#resultsAccordion"><div class="accordion-body">
+      <p>Average P/E multiple: {{ "%.2f"|format(r.manual_peer_valuation.pe_multiple) }}x → {{ r.csym }}{{ "%.2f"|format(r.manual_peer_valuation.pe_value) }}</p>
+      <p>Average EV/EBITDA multiple: {{ "%.2f"|format(r.manual_peer_valuation.ev_ebitda_multiple) }}x → {{ r.csym }}{{ "%.2f"|format(r.manual_peer_valuation.ev_ebitda_value) }}</p>
+      <p><strong>Blended average: {{ r.csym }}{{ "%.2f"|format(r.manual_peer_valuation.avg_value) }}</strong></p>
+    </div></div></div>
+    {% endif %}
+  </div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.32.0/plotly.min.js"></script>
+<script>
+  const charts = {{ r.charts | tojson }};
+  const plotDefaults = {responsive: true};
+  function draw(divId, key) {
+    if (charts[key]) {
+      const fig = JSON.parse(charts[key]);
+      Plotly.newPlot(divId, fig.data, fig.layout, plotDefaults);
+    }
+  }
+  draw('chart-hist', 'historical');
+  draw('chart-proj', 'projections');
+  draw('chart-wacc', 'wacc_breakdown');
+  draw('chart-waterfall', 'waterfall');
+</script>
+{% endblock %}

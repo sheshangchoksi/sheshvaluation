@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h4 class="mb-4">Select a valuation mode</h4>
+<div class="row g-3">
+  {% for mode in modes %}
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">{{ mode.title }}</h5>
+        <p class="card-subtitle text-muted mb-3">{{ mode.subtitle }}</p>
+        {% set url = url_for('dcf.listed_form') if mode.slug == 'listed' else (url_for('dcf.unlisted_form') if mode.slug == 'unlisted' else (url_for('dcf.screener_form') if mode.slug == 'screener' else url_for('dcf.mode_placeholder', mode=mode.slug))) %}
+        <a href="{{ url }}"
+           class="btn btn-outline-primary mt-auto {{ 'disabled' if not mode.ready }}">
+          {{ 'Open' if mode.ready else 'Coming soon' }}
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

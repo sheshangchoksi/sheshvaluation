@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Screener Excel Mode{% endblock %}
+{% block content %}
+<h4 class="mb-3">📊 Screener Excel Mode</h4>
+<p class="text-muted">
+  For financials exported/copied from Screener.in's own export format
+  (different sheet layout than the Unlisted template — sheet names
+  'BalanceSheet' and 'P&amp;L' with "Mar 2024"-style year headers).
+</p>
+
+<div class="card mb-3 border-warning">
+  <div class="card-body">
+    <h6 class="card-title">⚡ Auto-download from Screener.in <span class="badge bg-warning text-dark">Untested against live site</span></h6>
+    <p class="text-muted small mb-2">
+      Uses a saved Screener.in login session on the server to fetch the
+      company's data directly — skips the manual download/upload step.
+      Needs <code>instance/screener_cookies.pkl</code> to exist on the
+      server (export your Screener.in login cookies once and place them
+      there). This is a shared session for the whole app, not per-user.
+    </p>
+    <form method="post" action="{{ url_for('dcf.screener_auto_download') }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small">Screener.in Company Symbol</label>
+          <input type="text" class="form-control form-control-sm" name="company_symbol" placeholder="e.g. RELIANCE, HONASA">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">Company Name (optional)</label>
+          <input type="text" class="form-control form-control-sm" name="company_name">
+        </div>
+        <div class="col-md-3">
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" name="use_consolidated" id="use_consolidated">
+            <label class="form-check-label small" for="use_consolidated">Use consolidated financials</label>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-warning btn-sm w-100">⚡ Auto-download</button>
+        </div>
+      </div>
+      <input type="hidden" name="num_shares" value="0">
+      <input type="hidden" name="tax_rate" value="25">
+      <input type="hidden" name="terminal_growth" value="4">
+      <input type="hidden" name="historical_years" value="0">
+      <input type="hidden" name="projection_years" value="5">
+      <input type="hidden" name="manual_rf_rate" value="6.83">
+      <input type="hidden" name="manual_rm_rate" value="12">
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">1. Or download the template manually, fill it in</h6>
+    <a href="{{ url_for('dcf.screener_template') }}" class="btn btn-outline-secondary btn-sm">📥 Download Screener_template.xlsx</a>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('dcf.screener_analyze') }}" enctype="multipart/form-data" id="screener-form">
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">2. Upload &amp; company info</h6>
+          <div class="mb-3">
+            <label class="form-label">Company Name</label>
+            <input type="text" class="form-control" name="company_name">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Upload Screener Excel File</label>
+            <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Historical Years to Use</label>
+            <input type="number" class="form-control" name="historical_years" value="0" min="0" max="10">
+            <div class="form-text">0 = use all years found in the file.</div>
+          </div>
+          <div class="row">
+            <div class="col-8 mb-3">
+              <label class="form-label">Ticker (optional)</label>
+              <input type="text" class="form-control" name="ticker" placeholder="e.g. RELIANCE">
+              <div class="form-text">Fetches current price + beta from Yahoo Finance, and shares outstanding if not found elsewhere.</div>
+            </div>
+            <div class="col-4 mb-3">
+              <label class="form-label">Exchange</label>
+              <select class="form-select" name="exchange">
+                <option value="NS" selected>NSE</option>
+                <option value="BO">BSE</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">📊 Manual Peer Comparison</h6>
+          <p class="text-muted small">Screener mode doesn't auto-fetch peers — enter up to 5 manually (name + P/E and/or EV/EBITDA multiple).</p>
+          {% for i in range(1, 6) %}
+          <div class="row mb-2">
+            <div class="col-5">
+              <input type="text" class="form-control form-control-sm" name="peer{{ i }}_name" placeholder="Peer {{ i }} name">
+            </div>
+            <div class="col-3">
+              <input type="number" step="0.1" class="form-control form-control-sm" name="peer{{ i }}_pe" placeholder="P/E">
+            </div>
+            <div class="col-4">
+              <input type="number" step="0.1" class="form-control form-control-sm" name="peer{{ i }}_ev_ebitda" placeholder="EV/EBITDA">
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">Assumptions</h6>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Shares Outstanding (optional)</label>
+              <input type="number" class="form-control" name="num_shares" value="0" min="0">
+              <div class="form-text">Priority: this field &gt; extracted from Excel &gt; Yahoo ticker &gt; 100 fallback.</div>
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Tax Rate (%)</label>
+              <input type="number" step="0.5" class="form-control" name="tax_rate" value="25.0">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Terminal Growth (%)</label>
+              <input type="number" step="0.5" class="form-control" name="terminal_growth" value="4.0">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Projection Years</label>
+              <input type="number" class="form-control" name="projection_years" value="5" min="3" max="15">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Risk-Free Rate (%)</label>
+              <input type="number" step="0.1" class="form-control" name="manual_rf_rate" value="6.83">
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Market Return (%)</label>
+              <input type="number" step="0.1" class="form-control" name="manual_rm_rate" value="12.0">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Manual Discount Rate Override (%)</label>
+            <input type="number" step="0.5" class="form-control" name="manual_discount_rate" value="0">
+            <div class="form-text">0 = use auto-calculated WACC.</div>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-3">
+              <label class="form-label">Revenue Growth Override (%)</label>
+              <input type="number" step="0.5" class="form-control" name="rev_growth_override" value="0">
+              <div class="form-text">0 = auto from history.</div>
+            </div>
+            <div class="col-6 mb-3">
+              <label class="form-label">Opex Margin Override (%)</label>
+              <input type="number" step="0.5" class="form-control" name="opex_margin_override" value="0">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="alert alert-info small">
+        Note: Screener mode's field-mapping (COGS/OpEx split, working-capital
+        components) uses reasonable estimation ratios documented in the old
+        app, since Screener.in's export aggregates some line items rather
+        than itemizing them the way the Unlisted template does.
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary" id="submit-btn">🚀 Run DCF Valuation</button>
+  <span id="submit-spinner" class="spinner-border spinner-border-sm text-primary ms-2 d-none" role="status"></span>
+</form>
+
+<script>
+document.getElementById('screener-form').addEventListener('submit', function () {
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('submit-spinner').classList.remove('d-none');
+});
+</script>
+{% endblock %}
