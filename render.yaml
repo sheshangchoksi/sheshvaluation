@@ -5,7 +5,7 @@ databases:
 
 services:
   - type: web
-    name: dcf-valuation-engine
+    name: sheshvaluation
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
