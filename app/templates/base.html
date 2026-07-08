@@ -3,17 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}DCF Valuation Engine{% endblock %}</title>
+  <title>{% block title %}SheshValuation — DCF Valuation Engine{% endblock %}</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32x32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/favicon-16x16.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container">
-      <a class="navbar-brand" href="{{ url_for('dcf.home') }}">🏦 DCF Valuation Engine</a>
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dcf.home') }}">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="SheshValuation" height="36" class="me-2">
+      </a>
       <div class="ms-auto">
         {% if current_user.is_authenticated %}
           <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dcf.history_list') }}">📜 History</a>
+          <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dcf.about_page') }}">👤 About</a>
           <span class="navbar-text text-light me-3">Signed in as {{ current_user.email }}</span>
           <a class="btn btn-outline-light btn-sm" href="{{ url_for('auth.logout') }}">Log out</a>
         {% endif %}
