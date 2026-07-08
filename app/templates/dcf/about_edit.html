@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Edit About Page{% endblock %}
+{% block content %}
+<h4 class="mb-3">✏️ Edit About Page</h4>
+
+<form method="post" action="{{ url_for('dcf.about_edit') }}" enctype="multipart/form-data">
+  <div class="row">
+    <div class="col-md-7">
+      <div class="card mb-3"><div class="card-body">
+        <h6 class="card-title">Personal Information</h6>
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input type="text" class="form-control" name="name" value="{{ about.name }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Tagline</label>
+          <input type="text" class="form-control" name="tagline" value="{{ about.tagline }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">About Me</label>
+          <textarea class="form-control" name="about_me" rows="5">{{ about.about_me }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Academics</label>
+          <textarea class="form-control" name="academics" rows="4">{{ about.academics }}</textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Experience</label>
+          <textarea class="form-control" name="experience" rows="5">{{ about.experience }}</textarea>
+        </div>
+      </div></div>
+
+      <div class="card mb-3"><div class="card-body">
+        <h6 class="card-title">Social Links</h6>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">LinkedIn URL</label>
+            <input type="text" class="form-control" name="linkedin_url" value="{{ about.linkedin_url }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">GitHub URL</label>
+            <input type="text" class="form-control" name="github_url" value="{{ about.github_url }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Twitter URL</label>
+            <input type="text" class="form-control" name="twitter_url" value="{{ about.twitter_url }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Website URL</label>
+            <input type="text" class="form-control" name="website_url" value="{{ about.website_url }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" name="email" value="{{ about.email }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Phone</label>
+            <input type="text" class="form-control" name="phone" value="{{ about.phone }}">
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="col-md-5">
+      <div class="card mb-3"><div class="card-body">
+        <h6 class="card-title">Profile Photo</h6>
+        {% if about.photo_data %}
+          <p class="text-muted small">A photo is currently set — upload a new one to replace it.</p>
+        {% else %}
+          <p class="text-muted small">No photo uploaded yet.</p>
+        {% endif %}
+        <input type="file" class="form-control" name="photo" accept="image/jpeg,image/png">
+        <div class="form-text">Auto-resized to 500×500.</div>
+      </div></div>
+
+      <div class="card mb-3"><div class="card-body">
+        <h6 class="card-title">Resume / CV</h6>
+        {% if about.resume_filename %}
+          <p class="text-muted small">📄 Current: {{ about.resume_filename }}</p>
+        {% else %}
+          <p class="text-muted small">No resume uploaded yet.</p>
+        {% endif %}
+        <input type="file" class="form-control" name="resume" accept="application/pdf">
+        <div class="form-text">PDF only.</div>
+      </div></div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+  <a href="{{ url_for('dcf.about_page') }}" class="btn btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}
