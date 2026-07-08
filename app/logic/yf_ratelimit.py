@@ -106,10 +106,10 @@ import yfinance as yf
 # Yahoo's tolerance has tightened noticeably since curl_cffi's original
 # defaults were tuned; these are deliberately more conservative than the
 # textbook "1 req/sec" figure to leave real headroom before 429s.
-MIN_DELAY_S      = _env_float("YF_MIN_DELAY_S", 2.0)     # minimum pause between Yahoo requests
-MAX_DELAY_S      = _env_float("YF_MAX_DELAY_S", 4.5)     # maximum pause (random jitter)
+MIN_DELAY_S      = _env_float("YF_MIN_DELAY_S", 3.0)     # minimum pause between Yahoo requests
+MAX_DELAY_S      = _env_float("YF_MAX_DELAY_S", 6.0)     # maximum pause (random jitter)
 MAX_RETRIES      = _env_int("YF_MAX_RETRIES", 4)         # retry budget per call
-BASE_BACKOFF_S   = _env_float("YF_BASE_BACKOFF_S", 6.0)  # base for exponential backoff on 429
+BASE_BACKOFF_S   = _env_float("YF_BASE_BACKOFF_S", 10.0)  # base for exponential backoff on 429
 CACHE_TTL_S      = _env_int("YF_CACHE_TTL_S", 6 * 3600)  # in-process + disk cache TTL (6 hours —
                                                            # fundamentals/financials don't move
                                                            # intraday, so this is safe for a DCF tool)
@@ -331,11 +331,27 @@ def _with_retry(fn, *args, symbol: str | None = None, **kwargs):
             time.sleep(backoff)
         try:
             result = fn(*args, **kwargs)
-            # yf.download returns a DataFrame; empty == likely rate-limited
-            if isinstance(result, pd.DataFrame) and result.empty and attempt < MAX_RETRIES - 1:
-                logger.warning("yf_ratelimit: empty DataFrame on attempt %d — retrying", attempt + 1)
-                last_exc = RuntimeError("Empty DataFrame returned (possible silent 429)")
+
+            # yfinance silently returns None / {} / an empty DataFrame instead
+            # of raising when a request is quietly dropped (very common under
+            # rate limiting) — treat all three as a failure worth retrying,
+            # not a valid empty result, so callers never get None back and
+            # so we never poison the cache with a bad answer.
+            is_bad = (
+                result is None
+                or (isinstance(result, dict) and not result)
+                or (isinstance(result, pd.DataFrame) and result.empty)
+            )
+            if is_bad and attempt < MAX_RETRIES - 1:
+                logger.warning("yf_ratelimit: empty/None result on attempt %d — retrying", attempt + 1)
+                last_exc = RuntimeError("Empty/None result returned (possible silent 429)")
                 continue
+            if is_bad:
+                last_exc = RuntimeError(
+                    f"Yahoo Finance returned no usable data for {symbol or 'this request'} "
+                    f"after {MAX_RETRIES} attempts — likely still rate-limited."
+                )
+                break
             if symbol:
                 _circuit_record_success(symbol)
             return result
