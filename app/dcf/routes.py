@@ -43,8 +43,20 @@ def download_pdf(result_id):
 @login_required
 def history_list():
     from app.dcf.history_service import list_history
-    entries = list_history(current_user.id)
-    return render_template("dcf/history_list.html", entries=entries)
+    q = request.args.get("q", "").strip()
+    entries = list_history(current_user.id, search=q or None)
+    return render_template("dcf/history_list.html", entries=entries, q=q)
+
+
+@bp.route("/history/<entry_id>/delete", methods=["POST"])
+@login_required
+def history_delete(entry_id):
+    from app.dcf.history_service import delete_history_entry
+    if delete_history_entry(current_user.id, entry_id):
+        flash("Deleted.", "success")
+    else:
+        flash("Couldn't find that history entry.", "warning")
+    return redirect(url_for("dcf.history_list"))
 
 
 @bp.route("/history/<entry_id>")
@@ -66,12 +78,103 @@ def history_detail(entry_id):
     cache.set(f"result:{result_id}", (entry.mode, result, entry.company_name, entry.current_price or 0), timeout=900)
 
     if entry.is_bank_valuation:
-        return render_template("dcf/bank_results.html", r=result, params=params, mode=entry.mode, result_id=result_id)
+        return render_template("dcf/bank_results.html", r=result, params=params, mode=entry.mode, result_id=result_id, entry_id=entry.id)
     if entry.mode == "listed":
-        return render_template("dcf/listed_results.html", r=result, params=params, result_id=result_id)
+        return render_template("dcf/listed_results.html", r=result, params=params, result_id=result_id, entry_id=entry.id)
     if entry.mode == "unlisted":
-        return render_template("dcf/unlisted_results.html", r=result, params=params, result_id=result_id)
-    return render_template("dcf/screener_results.html", r=result, params=params, result_id=result_id)
+        return render_template("dcf/unlisted_results.html", r=result, params=params, result_id=result_id, entry_id=entry.id)
+    return render_template("dcf/screener_results.html", r=result, params=params, result_id=result_id, entry_id=entry.id)
+
+
+@bp.route("/history/<entry_id>/edit")
+@login_required
+def history_edit(entry_id):
+    """'Edit parameters & re-run' — send the user back to the mode's form
+    with every field pre-filled from a past run, instead of results being a
+    dead end once you've seen them."""
+    import json as _json
+    from app.dcf.history_service import get_history_entry
+
+    entry = get_history_entry(current_user.id, entry_id)
+    if entry is None:
+        flash("History entry not found.", "warning")
+        return redirect(url_for("dcf.history_list"))
+
+    prefill = _json.loads(entry.params_json) if entry.params_json else {}
+
+    if entry.mode == "listed":
+        defaults = defaults_for_exchange(prefill.get("exchange", "NSE"))
+        return render_template("dcf/listed_form.html", exchanges=EXCHANGES, defaults=defaults, prefill=prefill)
+    if entry.mode == "unlisted":
+        return render_template("dcf/unlisted_form.html", prefill=prefill)
+    return render_template("dcf/screener_form.html", prefill=prefill)
+
+
+@bp.route("/about")
+@login_required
+def about_page():
+    from app.dcf.about_service import get_about, photo_base64
+    entry = get_about()
+    return render_template("dcf/about_view.html", about=entry, photo_b64=photo_base64(entry))
+
+
+@bp.route("/about/edit", methods=["GET", "POST"])
+@login_required
+def about_edit():
+    from app.dcf.about_service import get_about, update_about, resize_photo
+
+    if request.method == "GET":
+        entry = get_about()
+        return render_template("dcf/about_edit.html", about=entry)
+
+    f = request.form
+    fields = {
+        "name": f.get("name", "").strip(),
+        "tagline": f.get("tagline", "").strip(),
+        "about_me": f.get("about_me", "").strip(),
+        "academics": f.get("academics", "").strip(),
+        "experience": f.get("experience", "").strip(),
+        "linkedin_url": f.get("linkedin_url", "").strip(),
+        "github_url": f.get("github_url", "").strip(),
+        "twitter_url": f.get("twitter_url", "").strip(),
+        "email": f.get("email", "").strip(),
+        "phone": f.get("phone", "").strip(),
+        "website_url": f.get("website_url", "").strip(),
+    }
+
+    photo_bytes = None
+    photo_file = request.files.get("photo")
+    if photo_file and photo_file.filename:
+        try:
+            photo_bytes = resize_photo(photo_file)
+        except Exception:
+            flash("Couldn't process that image — try a standard JPG/PNG.", "danger")
+
+    resume_bytes = None
+    resume_filename = None
+    resume_file = request.files.get("resume")
+    if resume_file and resume_file.filename:
+        resume_bytes = resume_file.read()
+        resume_filename = resume_file.filename
+
+    update_about(fields, photo_bytes=photo_bytes, resume_bytes=resume_bytes, resume_filename=resume_filename)
+    flash("About page updated.", "success")
+    return redirect(url_for("dcf.about_page"))
+
+
+@bp.route("/about/resume")
+@login_required
+def about_resume():
+    from app.dcf.about_service import get_about
+    from flask import Response
+    entry = get_about()
+    if not entry.resume_data:
+        flash("No resume uploaded yet.", "warning")
+        return redirect(url_for("dcf.about_page"))
+    return Response(
+        entry.resume_data, mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{entry.resume_filename or "resume.pdf"}"'},
+    )
 
 
 @bp.route("/")
@@ -226,12 +329,12 @@ def listed_analyze():
 
     result_id = uuid.uuid4().hex
     from app.dcf.history_service import save_history
-    save_history(current_user.id, "listed", result, params)
+    entry_id = save_history(current_user.id, "listed", result, params)
     cache.set(f"result:{result_id}", ("listed", result, params["ticker"], result.get("current_price", 0)), timeout=900)
 
     if result.get("is_bank_valuation"):
-        return render_template("dcf/bank_results.html", r=result, params=params, mode="listed", result_id=result_id)
-    return render_template("dcf/listed_results.html", r=result, params=params, result_id=result_id)
+        return render_template("dcf/bank_results.html", r=result, params=params, mode="listed", result_id=result_id, entry_id=entry_id)
+    return render_template("dcf/listed_results.html", r=result, params=params, result_id=result_id, entry_id=entry_id)
 
 
 @bp.route("/dcf/unlisted/template")
@@ -354,12 +457,12 @@ def unlisted_analyze():
 
     result_id = uuid.uuid4().hex
     from app.dcf.history_service import save_history
-    save_history(current_user.id, "unlisted", result, params)
+    entry_id = save_history(current_user.id, "unlisted", result, params)
     cache.set(f"result:{result_id}", ("unlisted", result, params.get("company_name") or "Company", 0), timeout=900)
 
     if result.get("is_bank_valuation"):
-        return render_template("dcf/bank_results.html", r=result, params=params, mode="unlisted", result_id=result_id)
-    return render_template("dcf/unlisted_results.html", r=result, params=params, result_id=result_id)
+        return render_template("dcf/bank_results.html", r=result, params=params, mode="unlisted", result_id=result_id, entry_id=entry_id)
+    return render_template("dcf/unlisted_results.html", r=result, params=params, result_id=result_id, entry_id=entry_id)
 
 
 @bp.route("/dcf/screener/template")
@@ -529,9 +632,9 @@ def screener_analyze():
 
     result_id = uuid.uuid4().hex
     from app.dcf.history_service import save_history
-    save_history(current_user.id, "screener", result, params)
+    entry_id = save_history(current_user.id, "screener", result, params)
     cache.set(f"result:{result_id}", ("screener", result, params.get("company_name") or "Company", 0), timeout=900)
 
     if result.get("is_bank_valuation"):
-        return render_template("dcf/bank_results.html", r=result, params=params, mode="screener", result_id=result_id)
-    return render_template("dcf/screener_results.html", r=result, params=params, result_id=result_id)
+        return render_template("dcf/bank_results.html", r=result, params=params, mode="screener", result_id=result_id, entry_id=entry_id)
+    return render_template("dcf/screener_results.html", r=result, params=params, result_id=result_id, entry_id=entry_id)

@@ -52,14 +52,27 @@ def save_history(user_id, mode, result, params):
     return entry.id
 
 
-def list_history(user_id, limit=50):
-    return (
-        ValuationHistory.query
-        .filter_by(user_id=user_id)
-        .order_by(ValuationHistory.created_at.desc())
-        .limit(limit)
-        .all()
-    )
+def list_history(user_id, limit=50, search=None):
+    query = ValuationHistory.query.filter_by(user_id=user_id)
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                ValuationHistory.company_name.ilike(like),
+                ValuationHistory.ticker.ilike(like),
+                ValuationHistory.mode.ilike(like),
+            )
+        )
+    return query.order_by(ValuationHistory.created_at.desc()).limit(limit).all()
+
+
+def delete_history_entry(user_id, entry_id):
+    entry = db.session.get(ValuationHistory, entry_id)
+    if entry is None or entry.user_id != user_id:
+        return False
+    db.session.delete(entry)
+    db.session.commit()
+    return True
 
 
 def get_history_entry(user_id, entry_id):
