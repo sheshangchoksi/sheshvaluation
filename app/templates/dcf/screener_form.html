@@ -38,16 +38,17 @@
           <button type="submit" class="btn btn-warning btn-sm w-100">⚡ Auto-download</button>
         </div>
       </div>
-      <input type="hidden" name="num_shares" value="0">
-      <input type="hidden" name="tax_rate" value="25">
-      <input type="hidden" name="terminal_growth" value="4">
-      <input type="hidden" name="historical_years" value="0">
-      <input type="hidden" name="projection_years" value="5">
-      <input type="hidden" name="manual_rf_rate" value="6.83">
-      <input type="hidden" name="manual_rm_rate" value="12">
     </form>
   </div>
 </div>
+
+{% if prefilled_path %}
+<div class="alert alert-success">
+  ✅ Downloaded and ready as <strong>{{ prefilled_path }}</strong> — fill in your assumptions below
+  (historical years, tax rate, terminal growth, peer tickers, etc.) and click <strong>Run Valuation</strong>.
+  You don't need to upload a file again.
+</div>
+{% endif %}
 
 <div class="card mb-3">
   <div class="card-body">
@@ -57,6 +58,7 @@
 </div>
 
 <form method="post" action="{{ url_for('dcf.screener_analyze') }}" enctype="multipart/form-data" id="screener-form">
+  {% if prefilled_path %}<input type="hidden" name="prefilled_path" value="{{ prefilled_path }}">{% endif %}
   <div class="row">
     <div class="col-md-6">
       <div class="card mb-3">
@@ -64,11 +66,12 @@
           <h6 class="card-title">2. Upload &amp; company info</h6>
           <div class="mb-3">
             <label class="form-label">Company Name</label>
-            <input type="text" class="form-control" name="company_name">
+            <input type="text" class="form-control" name="company_name" value="{{ prefill_company_name or '' }}">
           </div>
           <div class="mb-3">
             <label class="form-label">Upload Screener Excel File</label>
-            <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" required>
+            <input type="file" class="form-control" name="excel_file" accept=".xlsx,.xls" {{ "" if prefilled_path else "required" }}>
+            {% if prefilled_path %}<div class="form-text">Optional — {{ prefilled_path }} from Auto-download will be used unless you pick a different file.</div>{% endif %}
           </div>
           <div class="mb-3">
             <label class="form-label">Historical Years to Use</label>
@@ -78,7 +81,7 @@
           <div class="row">
             <div class="col-8 mb-3">
               <label class="form-label">Ticker (optional)</label>
-              <input type="text" class="form-control" name="ticker" placeholder="e.g. RELIANCE">
+              <input type="text" class="form-control" name="ticker" placeholder="e.g. RELIANCE" value="{{ prefill_ticker or '' }}">
               <div class="form-text">Fetches current price + beta from Yahoo Finance, and shares outstanding if not found elsewhere.</div>
             </div>
             <div class="col-4 mb-3">
