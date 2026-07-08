@@ -18,6 +18,7 @@ def create_app(config_object="app.config.Config"):
 
     from app.auth import models  # noqa: F401 -- registers User with SQLAlchemy before create_all/migrations run
     from app.dcf import history_models  # noqa: F401 -- registers ValuationHistory
+    from app.dcf import about_models  # noqa: F401 -- registers AboutPage
 
     from app.auth.routes import bp as auth_bp
     from app.dcf.routes import bp as dcf_bp
