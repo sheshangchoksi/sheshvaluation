@@ -181,6 +181,8 @@ def run_listed_valuation(params: dict) -> dict:
         creditor_days_override=none_if_zero(params.get("creditor_days_override", 0)),
         interest_rate_override=none_if_zero(params.get("interest_rate_override", 0)),
         working_capital_pct_override=none_if_zero(params.get("working_capital_pct_override", 0)),
+        rev_growth_per_year=params.get("rev_growth_per_year"),
+        ebitda_margin_per_year=params.get("ebitda_margin_per_year"),
     )
 
     cash_balance = financials["cash"][0] if financials["cash"][0] > 0 else 0

@@ -158,6 +158,10 @@ def listed_analyze():
         except ValueError:
             return default
 
+    def per_year_list(prefix):
+        vals = [num(f"{prefix}_yr{i}", 0) for i in range(1, 16)]
+        return vals if any(v > 0 for v in vals) else None
+
     from datetime import datetime as _dt
 
     def parse_date(name):
@@ -184,6 +188,8 @@ def listed_analyze():
             "peer_tickers": form.get("peer_tickers", "").strip(),
             "beta_start_date": parse_date("beta_start_date"),
             "beta_end_date": parse_date("beta_end_date"),
+            "rev_growth_per_year": per_year_list("rev_growth"),
+            "ebitda_margin_per_year": per_year_list("ebitda_margin"),
             "rev_growth_override": num("rev_growth_override", 0),
             "opex_margin_override": num("opex_margin_override", 0),
             "ebitda_margin_override": num("ebitda_margin_override", 0),
@@ -292,6 +298,10 @@ def unlisted_analyze():
         except ValueError:
             return default
 
+    def per_year_list(prefix):
+        vals = [num(f"{prefix}_yr{i}", 0) for i in range(1, 16)]
+        return vals if any(v > 0 for v in vals) else None
+
     params = {
         "company_name": f.get("company_name", "").strip(),
         "num_shares": integer("num_shares", 100),
@@ -303,6 +313,8 @@ def unlisted_analyze():
         "manual_rm_rate": num("manual_rm_rate", 12.0),
         "manual_discount_rate": num("manual_discount_rate", 0),
         "peer_tickers": f.get("peer_tickers", "").strip(),
+        "rev_growth_per_year": per_year_list("rev_growth"),
+        "ebitda_margin_per_year": per_year_list("ebitda_margin"),
         "run_dcf": f.get("run_dcf") == "on",
         "run_rim": f.get("run_rim") == "on",
         "run_comp": f.get("run_comp") == "on",
@@ -458,6 +470,10 @@ def screener_analyze():
         if name and (pe > 0 or ev_ebitda > 0):
             peers.append({"name": name, "pe": pe, "ev_ebitda": ev_ebitda})
 
+    def per_year_list(prefix):
+        vals = [num(f"{prefix}_yr{i}", 0) for i in range(1, 16)]
+        return vals if any(v > 0 for v in vals) else None
+
     params = {
         "company_name": f.get("company_name", "").strip(),
         "num_shares": integer("num_shares", 0),  # 0 = fall through to Excel/Yahoo/default chain
@@ -470,8 +486,28 @@ def screener_analyze():
         "manual_rf_rate": num("manual_rf_rate", 6.83),
         "manual_rm_rate": num("manual_rm_rate", 12.0),
         "manual_discount_rate": num("manual_discount_rate", 0),
+        "run_dcf": f.get("run_dcf") == "on",
+        "run_rim": f.get("run_rim") == "on",
+        "run_comp": f.get("run_comp") == "on",
+        # Advanced projection overrides — 0 means "auto" throughout
+        "rev_growth_per_year": per_year_list("rev_growth"),
+        "ebitda_margin_per_year": per_year_list("ebitda_margin"),
         "rev_growth_override": num("rev_growth_override", 0),
         "opex_margin_override": num("opex_margin_override", 0),
+        "ebitda_margin_override": num("ebitda_margin_override", 0),
+        "capex_ratio_override": num("capex_ratio_override", 0),
+        "depreciation_rate_override": num("depreciation_rate_override", 0),
+        "depreciation_method": f.get("depreciation_method", "Auto"),
+        "inventory_days_override": num("inventory_days_override", 0),
+        "debtor_days_override": num("debtor_days_override", 0),
+        "creditor_days_override": num("creditor_days_override", 0),
+        "interest_rate_override": num("interest_rate_override", 0),
+        "working_capital_pct_override": num("working_capital_pct_override", 0),
+        # RIM overrides
+        "rim_required_return": num("rim_required_return", 0),
+        "rim_assumed_roe": num("rim_assumed_roe", 0),
+        "rim_terminal_growth": num("rim_terminal_growth", 0),
+        "rim_projection_years": integer("rim_projection_years", 0),
         "peers": peers,
         "peer_tickers": f.get("peer_tickers", "").strip(),
     }

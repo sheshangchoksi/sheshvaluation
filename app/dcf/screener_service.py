@@ -108,6 +108,17 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
         financials, wc_metrics, params["projection_years"], params["tax_rate"],
         none_if_zero(params["rev_growth_override"]),
         none_if_zero(params["opex_margin_override"]),
+        capex_ratio_override=none_if_zero(params["capex_ratio_override"]),
+        ebitda_margin_override=none_if_zero(params["ebitda_margin_override"]),
+        depreciation_rate_override=none_if_zero(params["depreciation_rate_override"]),
+        depreciation_method=params.get("depreciation_method", "Auto"),
+        inventory_days_override=none_if_zero(params["inventory_days_override"]),
+        debtor_days_override=none_if_zero(params["debtor_days_override"]),
+        creditor_days_override=none_if_zero(params["creditor_days_override"]),
+        interest_rate_override=none_if_zero(params["interest_rate_override"]),
+        working_capital_pct_override=none_if_zero(params["working_capital_pct_override"]),
+        rev_growth_per_year=params.get("rev_growth_per_year"),
+        ebitda_margin_per_year=params.get("ebitda_margin_per_year"),
     )
 
     wacc_details = de.calculate_wacc(
@@ -131,16 +142,25 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
         raise ValuationError(dcf_error)
 
     # Screener-specific DDM/RIM (percentages -> decimals for these two calls only)
+    rim_required_return = params.get("rim_required_return", 0)
+    rim_required_return = (rim_required_return / 100) if rim_required_return > 0 else (wacc_details["ke"] / 100)
+    rim_terminal_growth = params.get("rim_terminal_growth", 0)
+    rim_terminal_growth = (rim_terminal_growth / 100) if rim_terminal_growth > 0 else (params["terminal_growth"] / 100)
+    rim_projection_years = params.get("rim_projection_years", 0) or params["projection_years"]
+
     ddm_result = se.calculate_screener_ddm_valuation(
         financials, shares,
-        required_return=wacc_details["ke"] / 100,
-        growth_rate=params["terminal_growth"] / 100,
+        required_return=rim_required_return,
+        growth_rate=rim_terminal_growth,
     )
+    rim_assumed_roe = params.get("rim_assumed_roe", 0)
+    rim_assumed_roe = (rim_assumed_roe / 100) if rim_assumed_roe > 0 else None
     rim_result = se.calculate_screener_rim_valuation(
         financials, shares,
-        required_return=wacc_details["ke"] / 100,
-        projection_years=params["projection_years"],
-        terminal_growth=params["terminal_growth"] / 100,
+        required_return=rim_required_return,
+        projection_years=rim_projection_years,
+        terminal_growth=rim_terminal_growth,
+        assumed_roe=rim_assumed_roe,
     )
 
     manual_peer_valuation = None

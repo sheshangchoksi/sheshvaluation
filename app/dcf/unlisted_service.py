@@ -93,6 +93,8 @@ def run_unlisted_valuation(excel_path: str, params: dict) -> dict:
         creditor_days_override=none_if_zero(params["creditor_days_override"]),
         interest_rate_override=none_if_zero(params["interest_rate_override"]),
         working_capital_pct_override=none_if_zero(params["working_capital_pct_override"]),
+        rev_growth_per_year=params.get("rev_growth_per_year"),
+        ebitda_margin_per_year=params.get("ebitda_margin_per_year"),
     )
 
     wacc_details = None
