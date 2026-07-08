@@ -66,7 +66,7 @@
           <h6 class="card-title">2. Upload &amp; company info</h6>
           <div class="mb-3">
             <label class="form-label">Company Name</label>
-            <input type="text" class="form-control" name="company_name" value="{{ prefill_company_name or '' }}">
+            <input type="text" class="form-control" name="company_name" value="{{ prefill_company_name or (prefill.get('company_name', '') if prefill else '') }}">
           </div>
           <div class="mb-3">
             <label class="form-label">Upload Screener Excel File</label>
@@ -75,7 +75,7 @@
           </div>
           <div class="mb-3">
             <label class="form-label">Historical Years to Use</label>
-            <input type="number" class="form-control" name="historical_years" value="0" min="0" max="10">
+            <input type="number" class="form-control" name="historical_years" value="{{ prefill.get('historical_years', '0') if prefill else '0' }}" min="0" max="10">
             <div class="form-text">0 = use all years found in the file.</div>
           </div>
           <div class="row">
@@ -87,8 +87,8 @@
             <div class="col-4 mb-3">
               <label class="form-label">Exchange</label>
               <select class="form-select" name="exchange">
-                <option value="NS" selected>NSE</option>
-                <option value="BO">BSE</option>
+                <option value="NS" {{ 'selected' if not prefill or prefill.get('exchange', 'NS') == 'NS' else '' }}>NSE</option>
+                <option value="BO" {{ 'selected' if prefill and prefill.get('exchange') == 'BO' else '' }}>BSE</option>
               </select>
             </div>
           </div>
@@ -133,22 +133,22 @@
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label">Shares Outstanding (optional)</label>
-              <input type="number" class="form-control" name="num_shares" value="0" min="0">
+              <input type="number" class="form-control" name="num_shares" value="{{ prefill.get('num_shares', '0') if prefill else '0' }}" min="0">
               <div class="form-text">Priority: this field &gt; extracted from Excel &gt; Yahoo ticker &gt; 100 fallback.</div>
             </div>
             <div class="col-6 mb-3">
               <label class="form-label">Tax Rate (%)</label>
-              <input type="number" step="0.5" class="form-control" name="tax_rate" value="25.0">
+              <input type="number" step="0.5" class="form-control" name="tax_rate" value="{{ prefill.get('tax_rate', '25.0') if prefill else '25.0' }}">
             </div>
           </div>
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label">Terminal Growth (%)</label>
-              <input type="number" step="0.5" class="form-control" name="terminal_growth" value="4.0">
+              <input type="number" step="0.5" class="form-control" name="terminal_growth" value="{{ prefill.get('terminal_growth', '4.0') if prefill else '4.0' }}">
             </div>
             <div class="col-6 mb-3">
               <label class="form-label">Projection Years</label>
-              <input type="number" class="form-control" name="projection_years" value="5" min="3" max="15">
+              <input type="number" class="form-control" name="projection_years" value="{{ prefill.get('projection_years', '5') if prefill else '5' }}" min="3" max="15">
             </div>
           </div>
           <div class="row align-items-end">
@@ -163,11 +163,11 @@
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label">Risk-Free Rate (%)</label>
-              <input type="number" step="0.1" class="form-control" name="manual_rf_rate" id="manual_rf_rate" value="6.83">
+              <input type="number" step="0.1" class="form-control" name="manual_rf_rate" id="manual_rf_rate" value="{{ prefill.get('manual_rf_rate', '6.83') if prefill else '6.83' }}">
             </div>
             <div class="col-6 mb-3">
               <label class="form-label">Market Return (%)</label>
-              <input type="number" step="0.1" class="form-control" name="manual_rm_rate" id="manual_rm_rate" value="12.0">
+              <input type="number" step="0.1" class="form-control" name="manual_rm_rate" id="manual_rm_rate" value="{{ prefill.get('manual_rm_rate', '12.0') if prefill else '12.0' }}">
             </div>
           </div>
           <div class="row align-items-end">
@@ -182,18 +182,18 @@
           <div id="rate-fetch-status" class="form-text mb-2"></div>
           <div class="mb-3">
             <label class="form-label">Manual Discount Rate Override (%)</label>
-            <input type="number" step="0.5" class="form-control" name="manual_discount_rate" value="0">
+            <input type="number" step="0.5" class="form-control" name="manual_discount_rate" value="{{ prefill.get('manual_discount_rate', '0') if prefill else '0' }}">
             <div class="form-text">0 = use auto-calculated WACC.</div>
           </div>
           <div class="row">
             <div class="col-6 mb-3">
               <label class="form-label">Revenue Growth Override (%)</label>
-              <input type="number" step="0.5" class="form-control" name="rev_growth_override" value="0">
+              <input type="number" step="0.5" class="form-control" name="rev_growth_override" value="{{ prefill.get('rev_growth_override', '0') if prefill else '0' }}">
               <div class="form-text">0 = auto from history.</div>
             </div>
             <div class="col-6 mb-3">
               <label class="form-label">Opex Margin Override (%)</label>
-              <input type="number" step="0.5" class="form-control" name="opex_margin_override" value="0">
+              <input type="number" step="0.5" class="form-control" name="opex_margin_override" value="{{ prefill.get('opex_margin_override', '0') if prefill else '0' }}">
             </div>
           </div>
         </div>
@@ -220,15 +220,15 @@
           <div class="row">
             <div class="col-md-4 mb-3">
               <label class="form-label">EBITDA Margin (%)</label>
-              <input type="number" step="0.5" class="form-control" name="ebitda_margin_override" value="0">
+              <input type="number" step="0.5" class="form-control" name="ebitda_margin_override" value="{{ prefill.get('ebitda_margin_override', '0') if prefill else '0' }}">
             </div>
             <div class="col-md-4 mb-3">
               <label class="form-label">CapEx / Revenue (%)</label>
-              <input type="number" step="0.5" class="form-control" name="capex_ratio_override" value="0">
+              <input type="number" step="0.5" class="form-control" name="capex_ratio_override" value="{{ prefill.get('capex_ratio_override', '0') if prefill else '0' }}">
             </div>
             <div class="col-md-4 mb-3">
               <label class="form-label">Depreciation Rate (%)</label>
-              <input type="number" step="0.5" class="form-control" name="depreciation_rate_override" value="0">
+              <input type="number" step="0.5" class="form-control" name="depreciation_rate_override" value="{{ prefill.get('depreciation_rate_override', '0') if prefill else '0' }}">
             </div>
           </div>
           <div class="row">
@@ -243,25 +243,25 @@
             </div>
             <div class="col-md-4 mb-3">
               <label class="form-label">Inventory Days</label>
-              <input type="number" step="1" class="form-control" name="inventory_days_override" value="0">
+              <input type="number" step="1" class="form-control" name="inventory_days_override" value="{{ prefill.get('inventory_days_override', '0') if prefill else '0' }}">
             </div>
             <div class="col-md-4 mb-3">
               <label class="form-label">Debtor/Receivables Days</label>
-              <input type="number" step="1" class="form-control" name="debtor_days_override" value="0">
+              <input type="number" step="1" class="form-control" name="debtor_days_override" value="{{ prefill.get('debtor_days_override', '0') if prefill else '0' }}">
             </div>
           </div>
           <div class="row">
             <div class="col-md-4 mb-3">
               <label class="form-label">Creditor/Payables Days</label>
-              <input type="number" step="1" class="form-control" name="creditor_days_override" value="0">
+              <input type="number" step="1" class="form-control" name="creditor_days_override" value="{{ prefill.get('creditor_days_override', '0') if prefill else '0' }}">
             </div>
             <div class="col-md-4 mb-3">
               <label class="form-label">Interest Rate (%)</label>
-              <input type="number" step="0.25" class="form-control" name="interest_rate_override" value="0">
+              <input type="number" step="0.25" class="form-control" name="interest_rate_override" value="{{ prefill.get('interest_rate_override', '0') if prefill else '0' }}">
             </div>
             <div class="col-md-4 mb-3">
               <label class="form-label">Working Capital % of Revenue</label>
-              <input type="number" step="0.5" class="form-control" name="working_capital_pct_override" value="0">
+              <input type="number" step="0.5" class="form-control" name="working_capital_pct_override" value="{{ prefill.get('working_capital_pct_override', '0') if prefill else '0' }}">
             </div>
           </div>
         </div>
@@ -306,21 +306,21 @@
           <div class="row">
             <div class="col-md-3 mb-3">
               <label class="form-label">Required Return (%)</label>
-              <input type="number" step="0.5" class="form-control" name="rim_required_return" value="0">
+              <input type="number" step="0.5" class="form-control" name="rim_required_return" value="{{ prefill.get('rim_required_return', '0') if prefill else '0' }}">
               <div class="form-text">0 = use calculated Ke.</div>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label">Assumed ROE (%)</label>
-              <input type="number" step="0.5" class="form-control" name="rim_assumed_roe" value="0">
+              <input type="number" step="0.5" class="form-control" name="rim_assumed_roe" value="{{ prefill.get('rim_assumed_roe', '0') if prefill else '0' }}">
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label">RIM Terminal Growth (%)</label>
-              <input type="number" step="0.5" class="form-control" name="rim_terminal_growth" value="0">
+              <input type="number" step="0.5" class="form-control" name="rim_terminal_growth" value="{{ prefill.get('rim_terminal_growth', '0') if prefill else '0' }}">
               <div class="form-text">0 = same as DCF terminal growth.</div>
             </div>
             <div class="col-md-3 mb-3">
               <label class="form-label">RIM Projection Years</label>
-              <input type="number" step="1" class="form-control" name="rim_projection_years" value="0">
+              <input type="number" step="1" class="form-control" name="rim_projection_years" value="{{ prefill.get('rim_projection_years', '0') if prefill else '0' }}">
               <div class="form-text">0 = same as DCF projection years.</div>
             </div>
           </div>

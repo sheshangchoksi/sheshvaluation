@@ -8,6 +8,7 @@
     <small class="text-muted">Shares outstanding: {{ "{:,}".format(r.shares) }}</small>
   </div>
   <a href="{{ url_for('dcf.listed_form') if mode == 'listed' else (url_for('dcf.unlisted_form') if mode == 'unlisted' else url_for('dcf.screener_form')) }}" class="btn btn-outline-secondary btn-sm">New analysis</a>
+  {% if entry_id %}<a href="{{ url_for('dcf.history_edit', entry_id=entry_id) }}" class="btn btn-outline-primary btn-sm ms-2">✏️ Edit Parameters &amp; Re-run</a>{% endif %}
 </div>
 
 <div class="alert alert-secondary">

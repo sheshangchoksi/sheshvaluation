@@ -2,20 +2,37 @@
 {% block title %}Valuation History{% endblock %}
 {% block content %}
 <h4 class="mb-3">📜 Valuation History</h4>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <input type="text" class="form-control" name="q" value="{{ q or '' }}" placeholder="Search by company, ticker, or mode…">
+  </div>
+  <div class="col-md-auto">
+    <button type="submit" class="btn btn-outline-primary">🔎 Search</button>
+    {% if q %}<a href="{{ url_for('dcf.history_list') }}" class="btn btn-outline-secondary">Clear</a>{% endif %}
+  </div>
+</form>
+
 {% if not entries %}
-<p class="text-muted">No valuations run yet.</p>
+<p class="text-muted">{{ "No results for that search." if q else "No valuations run yet." }}</p>
 {% else %}
-<table class="table table-sm table-hover">
-  <thead><tr><th>Date</th><th>Mode</th><th>Company</th><th>Fair Value</th><th>Current Price</th><th>WACC</th></tr></thead>
+<table class="table table-sm table-hover align-middle">
+  <thead><tr><th>Date</th><th>Mode</th><th>Company</th><th>Fair Value</th><th>Current Price</th><th>WACC</th><th></th></tr></thead>
   <tbody>
     {% for e in entries %}
-    <tr onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'" style="cursor:pointer">
-      <td>{{ e.created_at.strftime('%d %b %Y, %H:%M') }}</td>
-      <td><span class="badge bg-secondary">{{ e.mode }}{{ ' (bank)' if e.is_bank_valuation else '' }}</span></td>
-      <td>{{ e.company_name }}</td>
-      <td>{{ "%.2f"|format(e.fair_value_per_share) if e.fair_value_per_share else '—' }}</td>
-      <td>{{ "%.2f"|format(e.current_price) if e.current_price else '—' }}</td>
-      <td>{{ "%.2f"|format(e.wacc) + '%' if e.wacc else '—' }}</td>
+    <tr>
+      <td style="cursor:pointer" onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'">{{ e.created_at.strftime('%d %b %Y, %H:%M') }}</td>
+      <td style="cursor:pointer" onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'"><span class="badge bg-secondary">{{ e.mode }}{{ ' (bank)' if e.is_bank_valuation else '' }}</span></td>
+      <td style="cursor:pointer" onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'">{{ e.company_name }}</td>
+      <td style="cursor:pointer" onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'">{{ "%.2f"|format(e.fair_value_per_share) if e.fair_value_per_share else '—' }}</td>
+      <td style="cursor:pointer" onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'">{{ "%.2f"|format(e.current_price) if e.current_price else '—' }}</td>
+      <td style="cursor:pointer" onclick="window.location='{{ url_for('dcf.history_detail', entry_id=e.id) }}'">{{ "%.2f"|format(e.wacc) + '%' if e.wacc else '—' }}</td>
+      <td class="text-end">
+        <a href="{{ url_for('dcf.history_edit', entry_id=e.id) }}" class="btn btn-sm btn-outline-primary" title="Edit parameters & re-run">✏️</a>
+        <form method="post" action="{{ url_for('dcf.history_delete', entry_id=e.id) }}" class="d-inline" onsubmit="return confirm('Delete this valuation from history? This can\'t be undone.');">
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">🗑️</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

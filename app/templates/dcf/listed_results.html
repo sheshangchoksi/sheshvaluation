@@ -8,6 +8,7 @@
     <small class="text-muted">Shares outstanding: {{ "{:,}".format(r.shares) }} — source: {{ r.shares_source }}</small>
   </div>
   <a href="{{ url_for('dcf.listed_form') }}" class="btn btn-outline-secondary btn-sm">New analysis</a>
+  {% if entry_id %}<a href="{{ url_for('dcf.history_edit', entry_id=entry_id) }}" class="btn btn-outline-primary btn-sm ms-2">✏️ Edit Parameters &amp; Re-run</a>{% endif %}
   <a href="{{ url_for('dcf.download_pdf', result_id=result_id) }}" class="btn btn-outline-primary btn-sm ms-2">📄 Download PDF</a>
 </div>
 
