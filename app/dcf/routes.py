@@ -361,25 +361,12 @@ def screener_template():
 @login_required
 def screener_auto_download():
     from app.dcf.screener_autodownload_service import auto_download
-    from app.dcf.screener_service import run_screener_valuation
 
     f = request.form
     company_symbol = f.get("company_symbol", "").strip()
     if not company_symbol:
         flash("Enter a Screener.in company symbol (e.g. RELIANCE, HONASA).", "danger")
         return redirect(url_for("dcf.screener_form"))
-
-    def num(name, default=0.0):
-        try:
-            return float(f.get(name, default) or default)
-        except ValueError:
-            return default
-
-    def integer(name, default=0):
-        try:
-            return int(f.get(name, default) or default)
-        except ValueError:
-            return default
 
     cookies_path = current_app.config["SCREENER_COOKIES_PATH"]
     upload_dir = current_app.config["UPLOAD_FOLDER"]
@@ -402,46 +389,23 @@ def screener_auto_download():
         )
         return redirect(url_for("dcf.screener_form"))
 
-    params = {
-        "company_name": f.get("company_name", "").strip() or company_symbol,
-        "num_shares": integer("num_shares", 0),
-        "ticker": f.get("ticker", "").strip() or company_symbol,
-        "exchange": f.get("exchange", "NS"),
-        "tax_rate": num("tax_rate", 25.0),
-        "terminal_growth": num("terminal_growth", 4.0),
-        "historical_years": integer("historical_years", 0),
-        "projection_years": integer("projection_years", 5),
-        "manual_rf_rate": num("manual_rf_rate", 6.83),
-        "manual_rm_rate": num("manual_rm_rate", 12.0),
-        "manual_discount_rate": num("manual_discount_rate", 0),
-        "rev_growth_override": num("rev_growth_override", 0),
-        "opex_margin_override": num("opex_margin_override", 0),
-        "peers": [],
-    }
-
-    try:
-        result = run_screener_valuation(downloaded_path, params)
-    except ValuationError as e:
-        flash(str(e), "danger")
-        return redirect(url_for("dcf.screener_form"))
-    except Exception:
-        logger.exception("Unexpected error running valuation on auto-downloaded data for %s", company_symbol)
-        flash("Downloaded the data but the valuation itself failed. Check the numbers look reasonable.", "danger")
-        return redirect(url_for("dcf.screener_form"))
-    finally:
-        try:
-            os.remove(downloaded_path)
-        except OSError:
-            pass
-
-    result_id = uuid.uuid4().hex
-    from app.dcf.history_service import save_history
-    save_history(current_user.id, "screener", result, params)
-    cache.set(f"result:{result_id}", ("screener", result, params["company_name"], result.get("current_price", 0)), timeout=900)
-
-    if result.get("is_bank_valuation"):
-        return render_template("dcf/bank_results.html", r=result, params=params, mode="screener", result_id=result_id)
-    return render_template("dcf/screener_results.html", r=result, params=params, result_id=result_id)
+    # Auto-download only fetches the file — it does NOT run the valuation.
+    # We hand the saved filename back to the normal form (as a hidden field)
+    # so the user can set historical years, tax rate, terminal growth,
+    # rf/rm, discount/margin overrides, peer tickers (auto-fetch or manual)
+    # — every option the manual-upload path has — before clicking
+    # "Run Valuation" themselves.
+    flash(
+        f"Downloaded {company_symbol}'s data from Screener.in. Set your "
+        f"assumptions below, then click Run Valuation.",
+        "success",
+    )
+    return render_template(
+        "dcf/screener_form.html",
+        prefilled_path=os.path.basename(downloaded_path),
+        prefill_company_name=f.get("company_name", "").strip() or company_symbol,
+        prefill_ticker=company_symbol,
+    )
 
 
 @bp.route("/dcf/screener", methods=["GET"])
@@ -455,15 +419,24 @@ def screener_form():
 def screener_analyze():
     f = request.form
     excel_file = request.files.get("excel_file")
-
-    if not excel_file or excel_file.filename == "":
-        flash("Please upload a Screener-format Excel file.", "danger")
-        return redirect(url_for("dcf.screener_form"))
-
     upload_dir = current_app.config["UPLOAD_FOLDER"]
-    saved_name = f"{uuid.uuid4().hex}_{excel_file.filename}"
-    saved_path = os.path.join(upload_dir, saved_name)
-    excel_file.save(saved_path)
+
+    if excel_file and excel_file.filename != "":
+        saved_name = f"{uuid.uuid4().hex}_{excel_file.filename}"
+        saved_path = os.path.join(upload_dir, saved_name)
+        excel_file.save(saved_path)
+    else:
+        # Fall back to a file fetched via "Auto-download from Screener.in" —
+        # prefilled_path is just a basename (set by screener_auto_download),
+        # so resolve it against upload_dir and confirm it's actually inside
+        # that directory before trusting it.
+        prefilled_name = os.path.basename((f.get("prefilled_path") or "").strip())
+        candidate = os.path.join(upload_dir, prefilled_name) if prefilled_name else ""
+        if prefilled_name and os.path.commonpath([os.path.abspath(candidate), os.path.abspath(upload_dir)]) == os.path.abspath(upload_dir) and os.path.isfile(candidate):
+            saved_path = candidate
+        else:
+            flash("Please upload a Screener-format Excel file, or use Auto-download above.", "danger")
+            return redirect(url_for("dcf.screener_form"))
 
     def num(name, default=0.0):
         try:

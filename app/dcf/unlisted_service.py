@@ -109,7 +109,8 @@ def run_unlisted_valuation(excel_path: str, params: dict) -> dict:
         peer_tickers = params.get("peer_tickers", "").strip()
         if peer_tickers:
             try:
-                beta = de.calculate_peer_unlevered_beta(peer_tickers, financials, params["tax_rate"])
+                beta_result = de.calculate_peer_unlevered_beta(peer_tickers, financials, params["tax_rate"])
+                beta = beta_result["relevered_beta"] if isinstance(beta_result, dict) else beta_result
             except Exception:
                 beta = 1.0
         wacc_details["beta"] = beta
