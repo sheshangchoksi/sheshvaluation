@@ -53,6 +53,11 @@ def create_app(config_object="app.config.Config"):
         except Exception:
             app.logger.exception("Admin-column setup failed at startup")
 
+        try:
+            _ensure_appsettings_upi_columns(app, _db)
+        except Exception:
+            app.logger.exception("app_settings UPI-column setup failed at startup")
+
     @app.route("/favicon.ico")
     def favicon_ico():
         # Some browsers (and bookmark/tab-icon logic) request /favicon.ico
@@ -107,6 +112,31 @@ def _ensure_admin_column(app, db):
     with db.engine.begin() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
     app.logger.info("Added missing users.is_admin column")
+
+
+def _ensure_appsettings_upi_columns(app, db):
+    """Add app_settings.upi_id / upi_merchant_name if missing (existing
+    table from an earlier deploy, so create_all() won't touch it) -- same
+    reasoning as _ensure_admin_column above. Without this, an admin who
+    deployed before the UPI-ID-editing feature shipped would 500 the first
+    time /admin or /billing/pay queried the new columns."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    if "app_settings" not in inspector.get_table_names():
+        return  # create_all() above will have made it fresh, columns included
+    columns = {c["name"] for c in inspector.get_columns("app_settings")}
+    with db.engine.begin() as conn:
+        if "upi_id" not in columns:
+            conn.execute(text(
+                "ALTER TABLE app_settings ADD COLUMN upi_id VARCHAR(120) NOT NULL DEFAULT 'sheshang304@okaxis'"
+            ))
+            app.logger.info("Added missing app_settings.upi_id column")
+        if "upi_merchant_name" not in columns:
+            conn.execute(text(
+                "ALTER TABLE app_settings ADD COLUMN upi_merchant_name VARCHAR(120) NOT NULL DEFAULT 'SheshValuation'"
+            ))
+            app.logger.info("Added missing app_settings.upi_merchant_name column")
 
 
 def _promote_designated_admin(db):
