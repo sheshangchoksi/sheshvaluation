@@ -515,6 +515,7 @@ def screener_auto_download():
         downloaded_path = auto_download(
             company_symbol, cookies_path, upload_dir,
             use_consolidated=f.get("use_consolidated") == "on",
+            use_id_url=f.get("use_id_url") == "on",
         )
     except ValuationError as e:
         flash(str(e), "danger")
@@ -632,8 +633,10 @@ def screener_analyze():
         "manual_rm_rate": num("manual_rm_rate", 12.0),
         "manual_discount_rate": num("manual_discount_rate", 0),
         "run_dcf": f.get("run_dcf") == "on",
+        "run_ddm": f.get("run_ddm") == "on",
         "run_rim": f.get("run_rim") == "on",
         "run_comp": f.get("run_comp") == "on",
+        "use_yahoo_shares": f.get("use_yahoo_shares") == "on",
         # Advanced projection overrides — 0 means "auto" throughout
         "rev_growth_per_year": per_year_list("rev_growth"),
         "ebitda_margin_per_year": per_year_list("ebitda_margin"),
