@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 EXCHANGES = ["NSE", "BSE", "NASDAQ/NYSE", "LSE", "SSE/HKEX", "Other"]
 
 
+def _quota_exceeded_message(quota):
+    return (
+        f"You've used your {quota['free_limit']} free valuations for today. "
+        f"Extra valuations are ₹{quota['price_per_extra']} each, or go premium: "
+        f"₹{quota['price_1_month']}/month or ₹{quota['price_3_month']}/3 months for unlimited. "
+        f"Contact the admin to top up — this isn't automated yet (see /about for contact details)."
+    )
+
+
 @bp.route("/dcf/pdf/<result_id>")
 @login_required
 def download_pdf(result_id):
@@ -255,6 +264,12 @@ def listed_auto_peers():
 @bp.route("/dcf/listed/analyze", methods=["POST"])
 @login_required
 def listed_analyze():
+    from app.dcf.billing_service import check_quota, consume_credit_if_needed
+    allowed, quota = check_quota(current_user)
+    if not allowed:
+        flash(_quota_exceeded_message(quota), "warning")
+        return redirect(url_for("dcf.listed_form"))
+
     form = request.form
 
     def num(name, default=0.0):
@@ -331,6 +346,7 @@ def listed_analyze():
 
     result_id = uuid.uuid4().hex
     from app.dcf.history_service import save_history
+    consume_credit_if_needed(current_user, quota)
     entry_id = save_history(current_user.id, "listed", result, params)
     cache.set(f"result:{result_id}", ("listed", result, params["ticker"], result.get("current_price", 0)), timeout=900)
 
@@ -379,6 +395,12 @@ def unlisted_form():
 @bp.route("/dcf/unlisted/analyze", methods=["POST"])
 @login_required
 def unlisted_analyze():
+    from app.dcf.billing_service import check_quota, consume_credit_if_needed
+    allowed, quota = check_quota(current_user)
+    if not allowed:
+        flash(_quota_exceeded_message(quota), "warning")
+        return redirect(url_for("dcf.unlisted_form"))
+
     f = request.form
     excel_file = request.files.get("excel_file")
 
@@ -459,6 +481,7 @@ def unlisted_analyze():
 
     result_id = uuid.uuid4().hex
     from app.dcf.history_service import save_history
+    consume_credit_if_needed(current_user, quota)
     entry_id = save_history(current_user.id, "unlisted", result, params)
     cache.set(f"result:{result_id}", ("unlisted", result, params.get("company_name") or "Company", 0), timeout=900)
 
@@ -534,6 +557,12 @@ def screener_form():
 @bp.route("/dcf/screener/analyze", methods=["POST"])
 @login_required
 def screener_analyze():
+    from app.dcf.billing_service import check_quota, consume_credit_if_needed
+    allowed, quota = check_quota(current_user)
+    if not allowed:
+        flash(_quota_exceeded_message(quota), "warning")
+        return redirect(url_for("dcf.screener_form"))
+
     f = request.form
     excel_file = request.files.get("excel_file")
     upload_dir = current_app.config["UPLOAD_FOLDER"]
@@ -634,9 +663,117 @@ def screener_analyze():
 
     result_id = uuid.uuid4().hex
     from app.dcf.history_service import save_history
+    consume_credit_if_needed(current_user, quota)
     entry_id = save_history(current_user.id, "screener", result, params)
     cache.set(f"result:{result_id}", ("screener", result, params.get("company_name") or "Company", 0), timeout=900)
 
     if result.get("is_bank_valuation"):
         return render_template("dcf/bank_results.html", r=result, params=params, mode="screener", result_id=result_id, entry_id=entry_id)
     return render_template("dcf/screener_results.html", r=result, params=params, result_id=result_id, entry_id=entry_id)
+
+
+# ------------------------------------------------------------- admin panel
+
+@bp.route("/admin")
+@admin_required
+def admin_dashboard():
+    from app.dcf.billing_service import get_settings, list_users_with_status
+    return render_template(
+        "dcf/admin.html",
+        settings=get_settings(),
+        rows=list_users_with_status(),
+    )
+
+
+@bp.route("/admin/settings", methods=["POST"])
+@admin_required
+def admin_update_settings():
+    from app.dcf.billing_service import update_settings
+
+    def num(name, default):
+        try:
+            return int(request.form.get(name, default) or default)
+        except ValueError:
+            return default
+
+    update_settings({
+        "daily_free_valuations": num("daily_free_valuations", 3),
+        "price_per_extra_valuation_inr": num("price_per_extra_valuation_inr", 10),
+        "price_1_month_inr": num("price_1_month_inr", 100),
+        "price_3_month_inr": num("price_3_month_inr", 250),
+    })
+    flash("Settings updated.", "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+@bp.route("/admin/users/<user_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_user(user_id):
+    from app.dcf.billing_service import delete_user
+    ok, error = delete_user(user_id, current_user.id)
+    flash(error if not ok else "User deleted.", "danger" if not ok else "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+@bp.route("/admin/users/<user_id>/toggle-admin", methods=["POST"])
+@admin_required
+def admin_toggle_admin(user_id):
+    from app.auth.models import User
+    from app.extensions import db as _db
+
+    target = _db.session.get(User, user_id)
+    if target is None:
+        flash("User not found.", "danger")
+        return redirect(url_for("dcf.admin_dashboard"))
+
+    if target.id == current_user.id and target.is_admin:
+        # Prevent self-demotion racing with the "last admin" check elsewhere —
+        # simplest safe rule: you can't remove your own admin rights.
+        flash("You can't remove your own admin rights.", "warning")
+        return redirect(url_for("dcf.admin_dashboard"))
+
+    if target.is_admin:
+        remaining = User.query.filter(User.is_admin.is_(True), User.id != target.id).count()
+        if remaining == 0:
+            flash("Can't demote the last remaining admin.", "danger")
+            return redirect(url_for("dcf.admin_dashboard"))
+
+    target.is_admin = not target.is_admin
+    _db.session.commit()
+    flash(f"{target.email} is now {'an admin' if target.is_admin else 'a regular user'}.", "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+@bp.route("/admin/users/<user_id>/grant-subscription", methods=["POST"])
+@admin_required
+def admin_grant_subscription(user_id):
+    from app.dcf.billing_service import grant_subscription
+    plan = request.form.get("plan")
+    if plan not in ("1_month", "3_month"):
+        flash("Invalid plan.", "danger")
+        return redirect(url_for("dcf.admin_dashboard"))
+    sub = grant_subscription(user_id, plan)
+    flash(f"Premium granted until {sub.active_until.strftime('%d %b %Y')}.", "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+@bp.route("/admin/users/<user_id>/revoke-subscription", methods=["POST"])
+@admin_required
+def admin_revoke_subscription(user_id):
+    from app.dcf.billing_service import revoke_subscription
+    revoke_subscription(user_id)
+    flash("Premium revoked.", "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+@bp.route("/admin/users/<user_id>/grant-credits", methods=["POST"])
+@admin_required
+def admin_grant_credits(user_id):
+    from app.dcf.billing_service import grant_credits
+    try:
+        n = int(request.form.get("credits", 0))
+    except ValueError:
+        n = 0
+    grant_credits(user_id, n)
+    flash(f"Added {n} extra-valuation credits.", "success")
+    return redirect(url_for("dcf.admin_dashboard"))
