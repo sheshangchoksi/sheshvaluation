@@ -22,7 +22,7 @@ def create_app(config_object="app.config.Config"):
     from app.dcf import about_models  # noqa: F401 -- registers AboutPage
     from app.dcf import billing_models  # noqa: F401 -- registers AppSettings, Subscription
 
-    from app.auth.routes import bp as auth_bp
+    from app.auth.auth_routes import bp as auth_bp
     from app.dcf.routes import bp as dcf_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dcf_bp)
