@@ -56,12 +56,17 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
 
     latest_year_col = year_cols[-1]  # extract_screener_financials reverses to newest-first; latest raw column is the last one passed in
 
-    # --- shares outstanding: manual > Excel > Yahoo > fallback ---
+    # --- shares outstanding: manual > (Yahoo if use_yahoo_shares checked,
+    # else Excel) > (the other of Yahoo/Excel as fallback) > 100 fallback.
+    # Mirrors the original app's explicit "Fetch shares outstanding from
+    # Yahoo Finance" checkbox: unchecked (default) means Excel wins even
+    # if a ticker is given; checked means Yahoo is tried first.
     shares_source = None
     shares = params.get("num_shares", 0)
+    use_yahoo_shares = params.get("use_yahoo_shares", False)
     if shares and shares > 0:
         shares_source = "Manual override"
-    else:
+    elif not use_yahoo_shares:
         shares = se.get_screener_shares_outstanding(df_bs, latest_year_col)
         if shares > 0:
             shares_source = "Extracted from Excel (No. of Equity Shares)"
@@ -79,6 +84,13 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
             if not shares_source and yahoo_data.get("shares"):
                 shares = yahoo_data["shares"]
                 shares_source = "Yahoo Finance"
+
+    if not shares_source and use_yahoo_shares:
+        # Yahoo was tried first (per checkbox) and didn't have shares —
+        # fall back to Excel before giving up entirely.
+        shares = se.get_screener_shares_outstanding(df_bs, latest_year_col)
+        if shares > 0:
+            shares_source = "Extracted from Excel (Yahoo Finance fallback)"
 
     if not shares_source:
         shares = 100
@@ -148,12 +160,14 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
 
     cash_balance = financials["cash"][0] if financials["cash"][0] > 0 else 0
     manual_discount = params["manual_discount_rate"] if params["manual_discount_rate"] > 0 else None
-    valuation, dcf_error = de.calculate_dcf_valuation(
-        projections, wacc_details, params["terminal_growth"], shares, cash_balance,
-        manual_discount_rate=manual_discount,
-    )
-    if dcf_error:
-        raise ValuationError(dcf_error)
+    valuation = None
+    if params.get("run_dcf", True):
+        valuation, dcf_error = de.calculate_dcf_valuation(
+            projections, wacc_details, params["terminal_growth"], shares, cash_balance,
+            manual_discount_rate=manual_discount,
+        )
+        if dcf_error:
+            raise ValuationError(dcf_error)
 
     # Screener-specific DDM/RIM (percentages -> decimals for these two calls only)
     rim_required_return = params.get("rim_required_return", 0)
@@ -162,20 +176,24 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
     rim_terminal_growth = (rim_terminal_growth / 100) if rim_terminal_growth > 0 else (params["terminal_growth"] / 100)
     rim_projection_years = params.get("rim_projection_years", 0) or params["projection_years"]
 
-    ddm_result = se.calculate_screener_ddm_valuation(
-        financials, shares,
-        required_return=rim_required_return,
-        growth_rate=rim_terminal_growth,
-    )
-    rim_assumed_roe = params.get("rim_assumed_roe", 0)
-    rim_assumed_roe = (rim_assumed_roe / 100) if rim_assumed_roe > 0 else None
-    rim_result = se.calculate_screener_rim_valuation(
-        financials, shares,
-        required_return=rim_required_return,
-        projection_years=rim_projection_years,
-        terminal_growth=rim_terminal_growth,
-        assumed_roe=rim_assumed_roe,
-    )
+    ddm_result = None
+    if params.get("run_ddm", True):
+        ddm_result = se.calculate_screener_ddm_valuation(
+            financials, shares,
+            required_return=rim_required_return,
+            growth_rate=rim_terminal_growth,
+        )
+    rim_result = None
+    if params.get("run_rim", True):
+        rim_assumed_roe = params.get("rim_assumed_roe", 0)
+        rim_assumed_roe = (rim_assumed_roe / 100) if rim_assumed_roe > 0 else None
+        rim_result = se.calculate_screener_rim_valuation(
+            financials, shares,
+            required_return=rim_required_return,
+            projection_years=rim_projection_years,
+            terminal_growth=rim_terminal_growth,
+            assumed_roe=rim_assumed_roe,
+        )
 
     manual_peer_valuation = None
     if params.get("peers"):
@@ -187,7 +205,7 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
     # directly instead of trying to look the company itself up on Yahoo Finance.
     comp_results = None
     peer_tickers = params.get("peer_tickers", "").strip()
-    if peer_tickers:
+    if params.get("run_comp", True) and peer_tickers:
         try:
             comp_results = de.perform_comparative_valuation(
                 None, peer_tickers, financials, shares,
@@ -200,8 +218,9 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
         "historical": de.create_historical_financials_chart(financials),
         "projections": de.create_fcff_projection_chart(projections),
         "wacc_breakdown": de.create_wacc_breakdown_chart(wacc_details),
-        "waterfall": de.create_waterfall_chart(valuation),
     }
+    if valuation:
+        charts["waterfall"] = de.create_waterfall_chart(valuation)
 
     result.update({
         "wacc_details": wacc_details,
