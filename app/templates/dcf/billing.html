@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<h4 class="mb-3">💳 Billing</h4>
+
+<div class="card mb-4">
+  <div class="card-body">
+    {% if sub.is_premium_active %}
+      <div class="alert alert-success mb-2">✅ Premium active until <strong>{{ sub.active_until.strftime('%d %b %Y') }}</strong></div>
+    {% else %}
+      <div class="alert alert-light border mb-2">You're on the free plan — {{ settings.daily_free_valuations }} valuations/day.</div>
+    {% endif %}
+    {% if sub.extra_credits > 0 %}
+      <p class="mb-0">Extra-valuation credits available: <strong>{{ sub.extra_credits }}</strong></p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title">1 Month Premium</h6>
+        <p class="fs-4 fw-bold text-navy mb-2">₹{{ settings.price_1_month_inr }}</p>
+        <p class="text-muted small flex-grow-1">Unlimited valuations for 30 days.</p>
+        <form method="post" action="{{ url_for('dcf.billing_buy', plan='1_month') }}">
+          <button type="submit" class="btn btn-primary w-100">Buy 1 Month</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title">3 Month Premium</h6>
+        <p class="fs-4 fw-bold text-navy mb-2">₹{{ settings.price_3_month_inr }}</p>
+        <p class="text-muted small flex-grow-1">Unlimited valuations for 90 days.</p>
+        <form method="post" action="{{ url_for('dcf.billing_buy', plan='3_month') }}">
+          <button type="submit" class="btn btn-primary w-100">Buy 3 Months</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title">Single Extra Valuation</h6>
+        <p class="fs-4 fw-bold text-navy mb-2">₹{{ settings.price_per_extra_valuation_inr }}</p>
+        <p class="text-muted small flex-grow-1">One valuation beyond today's free limit.</p>
+        <form method="post" action="{{ url_for('dcf.billing_buy', plan='extra_valuation') }}">
+          <button type="submit" class="btn btn-outline-primary w-100">Buy 1 Credit</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h6 class="mb-2">Your Payment Requests</h6>
+{% if not requests %}
+<p class="text-muted small">No payment requests yet.</p>
+{% else %}
+<table class="table table-sm">
+  <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for r in requests %}
+    <tr>
+      <td>{{ r.created_at.strftime('%d %b %Y, %H:%M') }}</td>
+      <td>{{ r.plan }}</td>
+      <td>₹{{ r.amount_inr }}</td>
+      <td><code>{{ r.transaction_ref }}</code></td>
+      <td>
+        {% if r.status == 'pending' %}<span class="badge bg-warning text-dark">Pending</span>
+        {% elif r.status == 'verified' %}<span class="badge bg-success">Verified</span>
+        {% else %}<span class="badge bg-secondary">Rejected</span>{% endif %}
+        {% if r.status == 'pending' %}<a href="{{ url_for('dcf.billing_pay', transaction_ref=r.transaction_ref) }}" class="ms-2 small">view QR</a>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

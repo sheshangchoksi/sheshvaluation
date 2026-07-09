@@ -36,6 +36,37 @@
   </div>
 </div>
 
+{% if pending_payments %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title">🔔 Pending Payments ({{ pending_payments|length }})</h6>
+    <table class="table table-sm">
+      <thead><tr><th>User</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Requested</th><th class="text-end">Action</th></tr></thead>
+      <tbody>
+        {% for p in pending_payments %}
+        <tr>
+          <td>{{ p.user_email }}</td>
+          <td>{{ p.plan }}</td>
+          <td>₹{{ p.amount_inr }}</td>
+          <td><code>{{ p.transaction_ref }}</code></td>
+          <td>{{ p.created_at.strftime('%d %b, %H:%M') }}</td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('dcf.admin_approve_payment', transaction_ref=p.transaction_ref) }}" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-success">✅ Approve</button>
+            </form>
+            <form method="post" action="{{ url_for('dcf.admin_reject_payment', transaction_ref=p.transaction_ref) }}" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-outline-danger">✕ Reject</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="text-muted small mb-0">Cross-check the reference number against your UPI app / bank SMS before approving — there's no automatic verification.</p>
+  </div>
+</div>
+{% endif %}
+
 <h6 class="mb-2">Users</h6>
 <div class="table-responsive">
 <table class="table table-sm table-hover align-middle">

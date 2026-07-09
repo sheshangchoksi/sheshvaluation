@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Complete Payment{% endblock %}
+{% block content %}
+<h4 class="mb-3">💰 Complete Payment</h4>
+
+<div class="row">
+  <div class="col-md-5">
+    <div class="card mb-3">
+      <div class="card-body text-center">
+        <h6 class="card-title">Scan to Pay</h6>
+        <img src="{{ url_for('dcf.billing_qr', transaction_ref=req.transaction_ref) }}" alt="UPI QR code" class="img-fluid" style="max-width:280px;">
+        <p class="text-muted small mt-2 mb-0">Scan with any UPI app (GPay, PhonePe, Paytm…)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-7">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6 class="card-title">Payment Details</h6>
+        <table class="table table-sm mb-3">
+          <tr><td class="text-muted">Plan</td><td><strong>{{ plan_label }}</strong></td></tr>
+          <tr><td class="text-muted">Amount</td><td><strong>₹{{ req.amount_inr }}</strong></td></tr>
+          <tr><td class="text-muted">UPI ID</td><td><code>{{ upi_id }}</code></td></tr>
+          <tr><td class="text-muted">Reference</td><td><code>{{ req.transaction_ref }}</code></td></tr>
+        </table>
+
+        <a href="{{ upi_link }}" class="btn btn-primary w-100 mb-2">📱 Pay Now (opens your UPI app)</a>
+        <p class="text-muted small">The "Pay Now" button only works on a phone with a UPI app installed. On desktop, scan the QR code instead.</p>
+
+        <div class="alert alert-warning small mb-0">
+          <strong>After paying:</strong> the amount and reference are pre-filled by the QR code / link, so
+          you don't need to type anything. Your reference <code>{{ req.transaction_ref }}</code> will
+          appear in the payment note — keep this page or your history handy in case you need to point
+          the admin to it. This app doesn't auto-detect the payment (no payment gateway is wired up), so
+          your plan activates once the admin confirms the money arrived — check your
+          <a href="{{ url_for('dcf.billing_page') }}">Billing page</a> for status.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<a href="{{ url_for('dcf.billing_page') }}" class="btn btn-outline-secondary btn-sm">← Back to Billing</a>
+{% endblock %}
