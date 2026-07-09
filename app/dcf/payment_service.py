@@ -24,8 +24,11 @@ import qrcode
 from app.dcf.billing_models import PaymentRequest
 from app.extensions import db
 
-# Your UPI ID -- overridable via env var so it's not hardcoded to one
-# person's account if this code is ever reused.
+# Fallback default -- only used the first time the AppSettings row is
+# created (see billing_models.AppSettings.upi_id). After that, the UPI ID
+# actually used for QR codes/links lives in the database and is editable
+# from the admin panel (Admin > Quota & Pricing > UPI Payment Details),
+# so it can be changed without a redeploy.
 UPI_ID = os.environ.get("UPI_ID", "sheshang304@okaxis")
 MERCHANT_NAME = os.environ.get("UPI_MERCHANT_NAME", "SheshValuation")
 
@@ -40,18 +43,24 @@ def generate_transaction_ref():
     return f"SV-{secrets.token_hex(4).upper()}"
 
 
-def build_upi_link(amount_inr, transaction_ref, plan_label):
+def build_upi_link(amount_inr, transaction_ref, plan_label, upi_id=None, merchant_name=None):
     """upi://pay?pa=<vpa>&pn=<name>&am=<amount>&cu=INR&tn=<note>&tr=<ref>
 
     `tr` (transaction reference) and the ref embedded in `tn` (note) are
     both non-authoritative on a personal VPA -- some UPI apps show `tn` in
     the recipient's transaction history, others don't -- so the note is
     written to be self-explanatory even on apps that only show that much.
+
+    upi_id/merchant_name default to the env-var fallbacks above, but
+    callers should pass the live values from AppSettings (get_settings())
+    so an admin's change takes effect immediately.
     """
-    note = f"{MERCHANT_NAME} {plan_label} ref {transaction_ref}"
+    upi_id = upi_id or UPI_ID
+    merchant_name = merchant_name or MERCHANT_NAME
+    note = f"{merchant_name} {plan_label} ref {transaction_ref}"
     params = {
-        "pa": UPI_ID,
-        "pn": MERCHANT_NAME,
+        "pa": upi_id,
+        "pn": merchant_name,
         "am": str(amount_inr),
         "cu": "INR",
         "tn": note,

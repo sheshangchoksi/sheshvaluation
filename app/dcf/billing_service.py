@@ -20,6 +20,10 @@ def update_settings(fields):
                 "price_1_month_inr", "price_3_month_inr"):
         if key in fields:
             setattr(s, key, fields[key])
+    if "upi_id" in fields and fields["upi_id"]:
+        s.upi_id = fields["upi_id"].strip()
+    if "upi_merchant_name" in fields and fields["upi_merchant_name"]:
+        s.upi_merchant_name = fields["upi_merchant_name"].strip()
     db.session.commit()
     return s
 

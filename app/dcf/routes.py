@@ -716,6 +716,8 @@ def admin_update_settings():
         "price_per_extra_valuation_inr": num("price_per_extra_valuation_inr", 10),
         "price_1_month_inr": num("price_1_month_inr", 100),
         "price_3_month_inr": num("price_3_month_inr", 250),
+        "upi_id": request.form.get("upi_id", "").strip(),
+        "upi_merchant_name": request.form.get("upi_merchant_name", "").strip(),
     })
     flash("Settings updated.", "success")
     return redirect(url_for("dcf.admin_dashboard"))
@@ -835,17 +837,22 @@ def billing_buy(plan):
 @bp.route("/billing/pay/<transaction_ref>")
 @login_required
 def billing_pay(transaction_ref):
-    from app.dcf.payment_service import get_request, build_upi_link, PLAN_LABELS, UPI_ID
+    from app.dcf.billing_service import get_settings
+    from app.dcf.payment_service import get_request, build_upi_link, PLAN_LABELS
 
     req = get_request(transaction_ref)
     if req is None or req.user_id != current_user.id:
         flash("Payment request not found.", "warning")
         return redirect(url_for("dcf.billing_page"))
 
-    upi_link = build_upi_link(req.amount_inr, req.transaction_ref, PLAN_LABELS.get(req.plan, req.plan))
+    settings = get_settings()
+    upi_link = build_upi_link(
+        req.amount_inr, req.transaction_ref, PLAN_LABELS.get(req.plan, req.plan),
+        upi_id=settings.upi_id, merchant_name=settings.upi_merchant_name,
+    )
     return render_template(
         "dcf/billing_pay.html", req=req, upi_link=upi_link,
-        plan_label=PLAN_LABELS.get(req.plan, req.plan), upi_id=UPI_ID,
+        plan_label=PLAN_LABELS.get(req.plan, req.plan), upi_id=settings.upi_id,
     )
 
 
@@ -853,13 +860,18 @@ def billing_pay(transaction_ref):
 @login_required
 def billing_qr(transaction_ref):
     from flask import Response
+    from app.dcf.billing_service import get_settings
     from app.dcf.payment_service import get_request, build_upi_link, PLAN_LABELS, qr_png_bytes
 
     req = get_request(transaction_ref)
     if req is None or req.user_id != current_user.id:
         abort(404)
 
-    upi_link = build_upi_link(req.amount_inr, req.transaction_ref, PLAN_LABELS.get(req.plan, req.plan))
+    settings = get_settings()
+    upi_link = build_upi_link(
+        req.amount_inr, req.transaction_ref, PLAN_LABELS.get(req.plan, req.plan),
+        upi_id=settings.upi_id, merchant_name=settings.upi_merchant_name,
+    )
     return Response(qr_png_bytes(upi_link), mimetype="image/png")
 
 
