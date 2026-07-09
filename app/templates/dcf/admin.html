@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel{% endblock %}
+{% block content %}
+<h4 class="mb-3">⚙️ Admin Panel</h4>
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title">Quota &amp; Pricing</h6>
+    <p class="text-muted small mb-3">
+      There's no live payment gateway wired into this app (that needs a real
+      Razorpay/Stripe merchant account and API keys). These prices are shown
+      to users when they hit their daily limit; actually granting access
+      after payment is a manual step below, per user.
+    </p>
+    <form method="post" action="{{ url_for('dcf.admin_update_settings') }}" class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Free valuations / day</label>
+        <input type="number" min="0" class="form-control" name="daily_free_valuations" value="{{ settings.daily_free_valuations }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Price per extra (₹)</label>
+        <input type="number" min="0" class="form-control" name="price_per_extra_valuation_inr" value="{{ settings.price_per_extra_valuation_inr }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">1-month premium (₹)</label>
+        <input type="number" min="0" class="form-control" name="price_1_month_inr" value="{{ settings.price_1_month_inr }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">3-month premium (₹)</label>
+        <input type="number" min="0" class="form-control" name="price_3_month_inr" value="{{ settings.price_3_month_inr }}">
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary btn-sm">💾 Save Settings</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h6 class="mb-2">Users</h6>
+<div class="table-responsive">
+<table class="table table-sm table-hover align-middle">
+  <thead>
+    <tr>
+      <th>Email</th><th>Role</th><th>Used today</th><th>Premium</th><th>Extra credits</th><th class="text-end">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    {% set u = row.user %}
+    {% set sub = row.subscription %}
+    <tr>
+      <td>{{ u.email }}</td>
+      <td>{% if u.is_admin %}<span class="badge bg-warning text-dark">Admin</span>{% else %}<span class="badge bg-secondary">User</span>{% endif %}</td>
+      <td>{{ row.used_today }} / {{ settings.daily_free_valuations if not (sub.is_premium_active or u.is_admin) else "∞" }}</td>
+      <td>
+        {% if sub.is_premium_active %}
+          <span class="badge bg-success">Active until {{ sub.active_until.strftime('%d %b %Y') }}</span>
+        {% else %}
+          <span class="text-muted small">—</span>
+        {% endif %}
+      </td>
+      <td>{{ sub.extra_credits }}</td>
+      <td class="text-end">
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Manage</button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <form method="post" action="{{ url_for('dcf.admin_toggle_admin', user_id=u.id) }}">
+                <button type="submit" class="dropdown-item">{{ 'Remove admin' if u.is_admin else 'Make admin' }}</button>
+              </form>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{{ url_for('dcf.admin_grant_subscription', user_id=u.id) }}" class="px-3 py-1">
+                <div class="input-group input-group-sm mb-1">
+                  <select name="plan" class="form-select form-select-sm">
+                    <option value="1_month">1 month (₹{{ settings.price_1_month_inr }})</option>
+                    <option value="3_month">3 months (₹{{ settings.price_3_month_inr }})</option>
+                  </select>
+                  <button type="submit" class="btn btn-outline-success btn-sm">Grant</button>
+                </div>
+              </form>
+            </li>
+            {% if sub.is_premium_active %}
+            <li>
+              <form method="post" action="{{ url_for('dcf.admin_revoke_subscription', user_id=u.id) }}">
+                <button type="submit" class="dropdown-item text-danger">Revoke premium</button>
+              </form>
+            </li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{{ url_for('dcf.admin_grant_credits', user_id=u.id) }}" class="px-3 py-1">
+                <div class="input-group input-group-sm mb-1">
+                  <input type="number" name="credits" value="5" min="1" class="form-control form-control-sm">
+                  <button type="submit" class="btn btn-outline-primary btn-sm">+ Credits</button>
+                </div>
+              </form>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{{ url_for('dcf.admin_delete_user', user_id=u.id) }}"
+                    onsubmit="return confirm('Delete {{ u.email }} and all their valuation history? This can\'t be undone.');">
+                <button type="submit" class="dropdown-item text-danger">🗑️ Delete user</button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
