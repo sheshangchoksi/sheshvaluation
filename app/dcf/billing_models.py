@@ -21,6 +21,26 @@ class AppSettings(db.Model):
     )
 
 
+class PaymentRequest(db.Model):
+    """A pending (or resolved) UPI payment. Created the moment a user picks
+    a plan and gets shown a QR code; stays 'pending' until an admin
+    confirms the money actually landed (see PaymentManager docstring in
+    payment_service.py for why this step can't be automated without a
+    payment-gateway merchant account)."""
+
+    __tablename__ = "payment_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False, index=True)
+    plan = db.Column(db.String(20), nullable=False)  # "1_month" / "3_month" / "extra_valuation"
+    amount_inr = db.Column(db.Integer, nullable=False)
+    transaction_ref = db.Column(db.String(40), unique=True, nullable=False, index=True)  # e.g. SV-8F3A21C9
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending / verified / rejected
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    resolved_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    resolved_by = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+
+
 class Subscription(db.Model):
     """Premium status + pay-per-use credit balance for one user.
 

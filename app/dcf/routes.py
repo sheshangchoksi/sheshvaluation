@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
 from app.auth.decorators import admin_required
@@ -27,7 +27,7 @@ def _quota_exceeded_message(quota):
         f"You've used your {quota['free_limit']} free valuations for today. "
         f"Extra valuations are ₹{quota['price_per_extra']} each, or go premium: "
         f"₹{quota['price_1_month']}/month or ₹{quota['price_3_month']}/3 months for unlimited. "
-        f"Contact the admin to top up — this isn't automated yet (see /about for contact details)."
+        f"Visit Billing (top of page) to pay via UPI."
     )
 
 
@@ -678,10 +678,12 @@ def screener_analyze():
 @admin_required
 def admin_dashboard():
     from app.dcf.billing_service import get_settings, list_users_with_status
+    from app.dcf.payment_service import list_pending
     return render_template(
         "dcf/admin.html",
         settings=get_settings(),
         rows=list_users_with_status(),
+        pending_payments=list_pending(),
     )
 
 
@@ -776,4 +778,91 @@ def admin_grant_credits(user_id):
         n = 0
     grant_credits(user_id, n)
     flash(f"Added {n} extra-valuation credits.", "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+# ------------------------------------------------------------ UPI billing
+
+@bp.route("/billing")
+@login_required
+def billing_page():
+    from app.dcf.billing_service import get_settings, get_or_create_subscription
+    from app.dcf.payment_service import list_for_user
+
+    settings = get_settings()
+    sub = get_or_create_subscription(current_user.id)
+    return render_template(
+        "dcf/billing.html",
+        settings=settings, sub=sub,
+        requests=list_for_user(current_user.id),
+    )
+
+
+@bp.route("/billing/buy/<plan>", methods=["POST"])
+@login_required
+def billing_buy(plan):
+    from app.dcf.billing_service import get_settings
+    from app.dcf.payment_service import create_payment_request
+
+    if plan not in ("1_month", "3_month", "extra_valuation"):
+        flash("Invalid plan.", "danger")
+        return redirect(url_for("dcf.billing_page"))
+
+    settings = get_settings()
+    amount = {
+        "1_month": settings.price_1_month_inr,
+        "3_month": settings.price_3_month_inr,
+        "extra_valuation": settings.price_per_extra_valuation_inr,
+    }[plan]
+
+    req = create_payment_request(current_user.id, plan, amount)
+    return redirect(url_for("dcf.billing_pay", transaction_ref=req.transaction_ref))
+
+
+@bp.route("/billing/pay/<transaction_ref>")
+@login_required
+def billing_pay(transaction_ref):
+    from app.dcf.payment_service import get_request, build_upi_link, PLAN_LABELS, UPI_ID
+
+    req = get_request(transaction_ref)
+    if req is None or req.user_id != current_user.id:
+        flash("Payment request not found.", "warning")
+        return redirect(url_for("dcf.billing_page"))
+
+    upi_link = build_upi_link(req.amount_inr, req.transaction_ref, PLAN_LABELS.get(req.plan, req.plan))
+    return render_template(
+        "dcf/billing_pay.html", req=req, upi_link=upi_link,
+        plan_label=PLAN_LABELS.get(req.plan, req.plan), upi_id=UPI_ID,
+    )
+
+
+@bp.route("/billing/qr/<transaction_ref>.png")
+@login_required
+def billing_qr(transaction_ref):
+    from flask import Response
+    from app.dcf.payment_service import get_request, build_upi_link, PLAN_LABELS, qr_png_bytes
+
+    req = get_request(transaction_ref)
+    if req is None or req.user_id != current_user.id:
+        abort(404)
+
+    upi_link = build_upi_link(req.amount_inr, req.transaction_ref, PLAN_LABELS.get(req.plan, req.plan))
+    return Response(qr_png_bytes(upi_link), mimetype="image/png")
+
+
+@bp.route("/admin/payments/<transaction_ref>/approve", methods=["POST"])
+@admin_required
+def admin_approve_payment(transaction_ref):
+    from app.dcf.payment_service import approve_request
+    ok, error = approve_request(transaction_ref, current_user.id)
+    flash(error if not ok else f"Approved {transaction_ref} — subscription/credits granted.", "danger" if not ok else "success")
+    return redirect(url_for("dcf.admin_dashboard"))
+
+
+@bp.route("/admin/payments/<transaction_ref>/reject", methods=["POST"])
+@admin_required
+def admin_reject_payment(transaction_ref):
+    from app.dcf.payment_service import reject_request
+    ok, error = reject_request(transaction_ref, current_user.id)
+    flash(error if not ok else f"Rejected {transaction_ref}.", "danger" if not ok else "success")
     return redirect(url_for("dcf.admin_dashboard"))
