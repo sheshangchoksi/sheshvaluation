@@ -29,6 +29,14 @@
         <label class="form-label">3-month premium (₹)</label>
         <input type="number" min="0" class="form-control" name="price_3_month_inr" value="{{ settings.price_3_month_inr }}">
       </div>
+      <div class="col-md-6">
+        <label class="form-label">UPI ID (payer's app pays this VPA)</label>
+        <input type="text" class="form-control" name="upi_id" value="{{ settings.upi_id }}" placeholder="yourname@bank">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Merchant name shown to payer</label>
+        <input type="text" class="form-control" name="upi_merchant_name" value="{{ settings.upi_merchant_name }}">
+      </div>
       <div class="col-12">
         <button type="submit" class="btn btn-primary btn-sm">💾 Save Settings</button>
       </div>
