@@ -29,10 +29,16 @@ def _is_auth_error(exc: Exception) -> bool:
     return any(kw in text for kw in ("login", "authentic", "cookie", "session", "403", "401"))
 
 
-def auto_download(company_symbol: str, cookies_path: str, output_dir: str, use_consolidated: bool = False) -> str:
+def auto_download(company_symbol: str, cookies_path: str, output_dir: str, use_consolidated: bool = False, use_id_url: bool = False) -> str:
     """Returns the path to the downloaded, template-formatted Excel file
     (ready to pass straight to screener_service.run_screener_valuation).
-    Raises ValuationError with a clear message for expected failure modes."""
+    Raises ValuationError with a clear message for expected failure modes.
+
+    use_id_url: some companies (typically ones still in the IPO/listing
+    process) are only reachable on Screener.in via the numeric ID URL
+    format (/company/id/1285886/) rather than the usual symbol URL
+    (/company/RELIANCE/) -- same distinction the original app's UI made.
+    """
     if not os.path.exists(cookies_path):
         raise ValuationError(
             f"Screener.in cookies file not found at {cookies_path}. "
@@ -42,7 +48,7 @@ def auto_download(company_symbol: str, cookies_path: str, output_dir: str, use_c
     try:
         downloader = ScreenerDownloader(cookies_path)
         template_path = downloader.auto_download_and_convert(
-            company_symbol, output_dir=output_dir, use_consolidated=use_consolidated
+            company_symbol, output_dir=output_dir, use_consolidated=use_consolidated, use_id_url=use_id_url
         )
     except Exception as e:
         if _is_auth_error(e):
