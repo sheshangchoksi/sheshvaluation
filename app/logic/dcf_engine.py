@@ -706,7 +706,16 @@ class CachedTickerData:
         """Lazy load ticker data on first access"""
         if not self._loaded:
             try:
-                self._ticker_obj = yf.Ticker(self.symbol)
+                # Was raw yf.Ticker() -- bypassed yf_ratelimit's Chrome-
+                # impersonation session and disk cache entirely, despite
+                # this module importing safe_ticker at the top. Without the
+                # shield, Yahoo's bot detection would often 429/403 these
+                # calls, and plain yfinance's own internal retry/backoff on
+                # that is what made Listed-mode valuations feel "stuck" for
+                # 30-90s+ per ticker. safe_ticker() gives the same object
+                # interface (.info/.financials/.balance_sheet/.cashflow),
+                # so this is a drop-in swap.
+                self._ticker_obj = _rl_ticker(self.symbol)
                 # Fetch all data at once to minimize API calls
                 self._info = self._ticker_obj.info
                 self._financials = self._ticker_obj.financials
@@ -770,7 +779,7 @@ class CachedTickerData:
         
         # Fetch new history
         if self._ticker_obj is None:
-            self._ticker_obj = yf.Ticker(self.symbol)
+            self._ticker_obj = _rl_ticker(self.symbol)
         
         hist_data = self._ticker_obj.history(*args, **kwargs)
         
@@ -2925,8 +2934,11 @@ def get_stock_beta(ticker, market_ticker=None, period_years=3,
             start_date = end_date - pd.DateOffset(years=period_years)
 
         # ── Fetch daily OHLCV ─────────────────────────────────────────────
-        stock_obj  = yf.Ticker(ticker)
-        market_obj = yf.Ticker(market_ticker)
+        # Raw yf.Ticker() here bypassed the rate-limit shield (same issue
+        # as CachedTickerData above) even though this module imports
+        # safe_ticker at the top -- fixed to actually use it.
+        stock_obj  = _rl_ticker(ticker)
+        market_obj = _rl_ticker(market_ticker)
 
         stock  = stock_obj.history(start=start_date, end=end_date, period=None)
         market = market_obj.history(start=start_date, end=end_date, period=None)
@@ -3003,14 +3015,14 @@ def get_risk_free_rate(custom_ticker=None):
         debug.append(f"📅 **Fetching data** from {start_date.date()} to {end_date.date()}")
         
         # Try to get data from Yahoo Finance
-        ticker_obj = yf.Ticker(ticker)
+        ticker_obj = _rl_ticker(ticker)
         gsec_data = ticker_obj.history(period='max')
         
         if len(gsec_data) < 2:
             gsec_data = ticker_obj.history(start=start_date, end=end_date, period=None)
         
         if len(gsec_data) < 2:
-            gsec_data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+            gsec_data = _rl_download(ticker, start=start_date, end=end_date, progress=False)
             if isinstance(gsec_data.columns, pd.MultiIndex):
                 gsec_data.columns = gsec_data.columns.get_level_values(0)
         
@@ -3135,7 +3147,7 @@ def get_market_return(custom_ticker=None):
         debug.append(f"📅 Requesting maximum available historical data")
         
         # Try to get ALL available data using period='max'
-        ticker_obj = yf.Ticker(ticker)
+        ticker_obj = _rl_ticker(ticker)
         market_data = ticker_obj.history(period='max')
         
         if len(market_data) < 2:
@@ -3144,7 +3156,7 @@ def get_market_return(custom_ticker=None):
             market_data = ticker_obj.history(start=start_date, end=end_date, period=None)
         
         if len(market_data) < 2:
-            market_data = yf.download(ticker, period='max', progress=False)
+            market_data = _rl_download(ticker, period='max', progress=False)
             if isinstance(market_data.columns, pd.MultiIndex):
                 market_data.columns = market_data.columns.get_level_values(0)
         
