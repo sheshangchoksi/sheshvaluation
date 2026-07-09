@@ -92,9 +92,11 @@
 }
 </style>
 
+{% if current_user.is_admin %}
 <div class="d-flex justify-content-end mb-2">
   <a href="{{ url_for('dcf.about_edit') }}" class="btn btn-sm btn-outline-secondary">✏️ Edit Page</a>
 </div>
+{% endif %}
 
 <div class="about-container">
   <div class="about-hero">
