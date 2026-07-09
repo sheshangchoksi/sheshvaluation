@@ -27,6 +27,32 @@ def create_app(config_object="app.config.Config"):
 
     register_cli(app)
 
+    # Idempotent: only creates tables that don't exist yet, never touches or
+    # drops existing ones. Without this, adding a new db.Model (like the
+    # About page) in code does nothing in production until someone manually
+    # runs `flask init-db` or a migration against the live Postgres instance
+    # — which is exactly what caused the about_page 500 after this feature
+    # shipped. Wrapped in try/except so a DB hiccup at boot can't crash the
+    # whole app; the error still surfaces per-request via the 500 handler.
+    with app.app_context():
+        try:
+            from app.extensions import db as _db
+            _db.create_all()
+        except Exception:
+            app.logger.exception("db.create_all() failed at startup — tables may be missing")
+
+    @app.route("/favicon.ico")
+    def favicon_ico():
+        # Some browsers (and bookmark/tab-icon logic) request /favicon.ico
+        # directly at the root before ever parsing <link rel="icon"> in
+        # <head> -- without this route that request 404s even though the
+        # tags in base.html are correct.
+        from flask import send_from_directory
+        return send_from_directory(
+            os.path.join(app.root_path, "static", "img"), "favicon.ico",
+            mimetype="image/vnd.microsoft.icon",
+        )
+
     @app.route("/healthz")
     def healthz():
         return {"status": "ok"}, 200
