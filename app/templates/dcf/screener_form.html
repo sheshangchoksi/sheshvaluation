@@ -104,8 +104,21 @@
             <input type="text" class="form-control" name="peer_tickers" id="peer_tickers" placeholder="e.g. TCS.NS, INFY.NS">
             <button type="button" class="btn btn-outline-secondary" onclick="autoFetchScreenerPeers()">🔎 Auto-fetch</button>
           </div>
-          <div class="form-text">Uses the ticker above to find similar companies on Yahoo Finance, then pulls full P/E, P/B, P/S, EV/EBITDA and EV/Sales multiples for a relative-valuation table — same engine as Listed mode. Include exchange suffix, or click Auto-fetch.</div>
+          <div class="form-text">Uses the ticker above to find similar companies on Yahoo Finance, then pulls full P/E, P/B, P/S, EV/EBITDA and EV/Sales multiples for a relative-valuation table — same engine as Listed mode. Include exchange suffix, or click Auto-fetch. <strong>These peer tickers also drive the WACC beta</strong> (Hamada unlever/relever, same as Unlisted mode) — Screener mode has no market-observable beta of its own.</div>
           <div id="peer-fetch-status" class="form-text"></div>
+
+          <hr class="my-3">
+          <p class="text-muted small mb-2">Beta Calculation Period — daily returns, defaults to 3 years ending today if left unchanged.</p>
+          <div class="row">
+            <div class="col-md-6 mb-2">
+              <label class="form-label">From</label>
+              <input type="date" class="form-control" name="beta_start_date">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="form-label">To</label>
+              <input type="date" class="form-control" name="beta_end_date">
+            </div>
+          </div>
 
           <hr class="my-3">
           <p class="text-muted small mb-2">Or, if you don't have a ticker for the peers (e.g. unlisted comparables), enter up to 5 manually:</p>
