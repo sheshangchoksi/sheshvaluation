@@ -1,0 +1,22 @@
+<svg width="240" height="60" viewBox="0 0 240 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f3a5f"/>
+      <stop offset="100%" stop-color="#16293f"/>
+    </linearGradient>
+  </defs>
+  <!-- Mark: ascending bars forming a "V" (Valuation) rising through a discounted curve -->
+  <g transform="translate(4,8)">
+    <rect x="0"  y="30" width="7" height="14" rx="1.5" fill="url(#mark)"/>
+    <rect x="10" y="22" width="7" height="22" rx="1.5" fill="url(#mark)"/>
+    <rect x="20" y="12" width="7" height="32" rx="1.5" fill="#a9812f"/>
+    <rect x="30" y="22" width="7" height="22" rx="1.5" fill="url(#mark)"/>
+    <rect x="40" y="30" width="7" height="14" rx="1.5" fill="url(#mark)"/>
+  </g>
+  <text x="58" y="26" font-family="Times New Roman, Times, serif" font-size="22" font-weight="700" fill="#1c1c1c">Shesh</text>
+  <text x="58" y="26" font-family="Times New Roman, Times, serif" font-size="22" font-weight="700" fill="#a9812f" dx="0">
+    <tspan dx="0"></tspan>
+  </text>
+  <text x="128" y="26" font-family="Times New Roman, Times, serif" font-size="22" font-weight="700" fill="#a9812f">Valuation</text>
+  <text x="58" y="42" font-family="Times New Roman, Times, serif" font-size="11" letter-spacing="1.5" fill="#4a4a45">DCF &amp; RELATIVE VALUATION ENGINE</text>
+</svg>
