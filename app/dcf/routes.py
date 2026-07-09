@@ -5,6 +5,8 @@ import uuid
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
+from app.auth.decorators import admin_required
+
 from app.dcf.errors import ValuationError
 from app.dcf.listed_service import defaults_for_exchange, run_listed_valuation
 from app.dcf.pdf_service import build_pdf
@@ -119,7 +121,7 @@ def about_page():
 
 
 @bp.route("/about/edit", methods=["GET", "POST"])
-@login_required
+@admin_required
 def about_edit():
     from app.dcf.about_service import get_about, update_about, resize_photo
 
