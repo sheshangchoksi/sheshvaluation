@@ -1,5 +1,6 @@
 import os
 
+import click
 from flask import Flask
 
 
@@ -41,6 +42,16 @@ def create_app(config_object="app.config.Config"):
         except Exception:
             app.logger.exception("db.create_all() failed at startup — tables may be missing")
 
+        # create_all() only creates missing TABLES, not missing COLUMNS on
+        # tables that already exist -- so adding is_admin to the existing
+        # `users` table needs its own check (same class of bug as the
+        # about_page 500: a new field in code doesn't reach prod on its own).
+        try:
+            _ensure_admin_column(app, _db)
+            _promote_designated_admin(_db)
+        except Exception:
+            app.logger.exception("Admin-column setup failed at startup")
+
     @app.route("/favicon.ico")
     def favicon_ico():
         # Some browsers (and bookmark/tab-icon logic) request /favicon.ico
@@ -57,6 +68,11 @@ def create_app(config_object="app.config.Config"):
     def healthz():
         return {"status": "ok"}, 200
 
+    @app.errorhandler(403)
+    def forbidden(e):
+        from flask import render_template
+        return render_template("error.html", code=403, message="You don't have permission to do that."), 403
+
     @app.errorhandler(404)
     def not_found(e):
         from flask import render_template
@@ -68,6 +84,40 @@ def create_app(config_object="app.config.Config"):
         return render_template("error.html", code=500, message="Something went wrong."), 500
 
     return app
+
+
+# The one account that should always be admin. Overridable via env var so
+# this isn't hardcoded if the real owner's email ever changes, but defaults
+# to the address that was explicitly asked to be admin.
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "sheshang2004@gmail.com").strip().lower()
+
+
+def _ensure_admin_column(app, db):
+    """Add users.is_admin if it's missing (existing table, so create_all()
+    won't touch it). Works on both Postgres (prod) and SQLite (local/dev)."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    if "users" not in inspector.get_table_names():
+        return  # create_all() above will have made it fresh, with is_admin already
+    columns = {c["name"] for c in inspector.get_columns("users")}
+    if "is_admin" in columns:
+        return
+    with db.engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT FALSE"))
+    app.logger.info("Added missing users.is_admin column")
+
+
+def _promote_designated_admin(db):
+    """Idempotent: if ADMIN_EMAIL has an account, make sure it's an admin.
+    Never demotes anyone else -- this only ever adds the flag, never removes
+    it, so it's safe to run on every startup."""
+    from app.auth.models import User
+
+    user = User.query.filter_by(email=ADMIN_EMAIL).first()
+    if user is not None and not user.is_admin:
+        user.is_admin = True
+        db.session.commit()
 
 
 def register_cli(app):
@@ -83,3 +133,19 @@ def register_cli(app):
         from app.extensions import db
         db.create_all()
         print("Database tables created.")
+
+    @app.cli.command("make-admin")
+    @click.argument("email")
+    def make_admin_cmd(email):
+        """Grant admin rights to an existing account: flask make-admin someone@example.com"""
+        from app.extensions import db
+        from app.auth.models import User
+
+        email = email.strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if user is None:
+            print(f"No account found for {email} — they need to sign up first.")
+            return
+        user.is_admin = True
+        db.session.commit()
+        print(f"{email} is now an admin.")
