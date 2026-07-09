@@ -14,6 +14,19 @@ the original app exactly rather than reusing the generic DCF-engine DDM/RIM.
 Shares outstanding priority (highest wins): manual override > extracted
 from the Excel file's "No. of Equity Shares" row > Yahoo Finance (via an
 optional ticker) > a hard 100-share fallback so the page never crashes.
+
+WACC/beta FIX: the original app's Screener mode computes WACC beta from
+`peer_tickers` via Hamada unlever/relever (calculate_wacc's own peer
+branch) — exactly like Unlisted mode — NOT from the single "ticker"
+field. That field's raw Yahoo beta is fetched only for the current-price
+display; the original source even comments "beta not needed for Screener
+mode" next to it. An earlier port here mistakenly overrode WACC's beta
+with that single-ticker raw beta (skipping the peer unlever/relever
+entirely, and silently defaulting the bank-mode branch's peer_tickers to
+""), which produced a wrong cost of equity and therefore a wrong DCF
+fair value. Now matches the original: peer_tickers drives beta for both
+normal and bank-mode WACC, with beta_start_date/beta_end_date support
+matching Listed mode.
 """
 from app.dcf.errors import ValuationError
 from app.dcf.unlisted_service import none_if_zero
@@ -94,7 +107,7 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
             "projection_years": params["projection_years"],
             "manual_rf_rate": params["manual_rf_rate"],
             "manual_rm_rate": params["manual_rm_rate"],
-            "peer_tickers": "",
+            "peer_tickers": params.get("peer_tickers", ""),
             "car_ratio": params.get("car_ratio", 14.0),
             "rwa_percentage": params.get("rwa_percentage", 75.0),
         }
@@ -121,15 +134,16 @@ def run_screener_valuation(excel_path: str, params: dict) -> dict:
         ebitda_margin_per_year=params.get("ebitda_margin_per_year"),
     )
 
+    # Beta: the original app's Screener mode does NOT use the single ticker's
+    # raw beta for WACC (that field is fetched only for the current-price
+    # display — see its own comment "beta not needed for Screener mode").
+    # WACC beta instead comes from peer_tickers via Hamada unlever/relever,
+    # same as Unlisted mode. Falls back to 1.0 if no peers are given.
+    peer_tickers_for_beta = params.get("peer_tickers", "").strip()
     wacc_details = de.calculate_wacc(
-        financials, params["tax_rate"], peer_tickers=None,
+        financials, params["tax_rate"], peer_tickers=peer_tickers_for_beta or None,
         manual_rf_rate=params["manual_rf_rate"], manual_rm_rate=params["manual_rm_rate"],
-    )
-    wacc_details["beta"] = beta
-    wacc_details["ke"] = wacc_details["rf"] + (beta * (wacc_details["rm"] - wacc_details["rf"]))
-    wacc_details["wacc"] = (
-        (wacc_details["we"] / 100 * wacc_details["ke"])
-        + (wacc_details["wd"] / 100 * wacc_details["kd_after_tax"])
+        beta_start_date=params.get("beta_start_date"), beta_end_date=params.get("beta_end_date"),
     )
 
     cash_balance = financials["cash"][0] if financials["cash"][0] > 0 else 0

@@ -596,6 +596,17 @@ def screener_analyze():
         except ValueError:
             return default
 
+    from datetime import datetime as _dt
+
+    def parse_date(name):
+        raw = f.get(name, "").strip()
+        if not raw:
+            return None
+        try:
+            return _dt.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
     peers = []
     for i in range(1, 6):  # up to 5 manual peers — see form notice re: dynamic add-row
         name = f.get(f"peer{i}_name", "").strip()
@@ -644,6 +655,8 @@ def screener_analyze():
         "rim_projection_years": integer("rim_projection_years", 0),
         "peers": peers,
         "peer_tickers": f.get("peer_tickers", "").strip(),
+        "beta_start_date": parse_date("beta_start_date"),
+        "beta_end_date": parse_date("beta_end_date"),
     }
 
     try:
