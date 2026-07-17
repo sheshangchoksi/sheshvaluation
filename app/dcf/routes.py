@@ -17,6 +17,33 @@ from app.logic import dcf_engine as de
 from app.logic.unlisted_template import create_unlisted_template
 
 bp = Blueprint("dcf", __name__, url_prefix="/")
+
+
+@bp.route("/scout/redirect")
+@login_required
+def scout_redirect():
+    """Real SSO hand-off to SheshScout, not just a link to a separate
+    login screen. Two different apps/DBs (see app/__init__.py's
+    inject_scout_url comment) so this signs a short-lived token vouching
+    for the current user's email; SheshScout's /auth/sso verifies it with
+    the same shared secret and logs them straight in. See
+    app/routers/auth.py's sso_login on the SheshScout side."""
+    import base64
+    import hashlib
+    import hmac
+    import time
+    from urllib.parse import quote
+
+    scout_url = os.environ.get("SCOUT_URL", "").rstrip("/")
+    secret = os.environ.get("SSO_SHARED_SECRET", "")
+    if not scout_url or not secret:
+        flash("Stock Scout isn't configured on this deployment yet (missing SCOUT_URL/SSO_SHARED_SECRET).", "warning")
+        return redirect(url_for("dcf.home"))
+
+    payload = f"{current_user.email}|{int(time.time()) + 60}"  # 60s window to use it
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    token = base64.urlsafe_b64encode(payload.encode()).decode() + "." + sig
+    return redirect(f"{scout_url}/auth/sso?token={quote(token)}")
 logger = logging.getLogger(__name__)
 
 EXCHANGES = ["NSE", "BSE", "NASDAQ/NYSE", "LSE", "SSE/HKEX", "Other"]

@@ -16,7 +16,7 @@ class AppSettings(db.Model):
     price_1_month_inr = db.Column(db.Integer, nullable=False, default=100)
     price_3_month_inr = db.Column(db.Integer, nullable=False, default=250)
     upi_id = db.Column(db.String(120), nullable=False, default="sheshang304@okaxis")
-    upi_merchant_name = db.Column(db.String(120), nullable=False, default="SheshValuation")
+    upi_merchant_name = db.Column(db.String(120), nullable=False, default="SheshAnalysis")
     updated_at = db.Column(
         db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc), nullable=False,

@@ -30,7 +30,7 @@ from app.extensions import db
 # from the admin panel (Admin > Quota & Pricing > UPI Payment Details),
 # so it can be changed without a redeploy.
 UPI_ID = os.environ.get("UPI_ID", "sheshang304@okaxis")
-MERCHANT_NAME = os.environ.get("UPI_MERCHANT_NAME", "SheshValuation")
+MERCHANT_NAME = os.environ.get("UPI_MERCHANT_NAME", "SheshAnalysis")
 
 PLAN_LABELS = {
     "1_month": "1 Month Premium",
@@ -44,12 +44,22 @@ def generate_transaction_ref():
 
 
 def build_upi_link(amount_inr, transaction_ref, plan_label, upi_id=None, merchant_name=None):
-    """upi://pay?pa=<vpa>&pn=<name>&am=<amount>&cu=INR&tn=<note>&tr=<ref>
+    """upi://pay?pa=<vpa>&pn=<name>&am=<amount>&cu=INR&tn=<note>
 
-    `tr` (transaction reference) and the ref embedded in `tn` (note) are
-    both non-authoritative on a personal VPA -- some UPI apps show `tn` in
-    the recipient's transaction history, others don't -- so the note is
-    written to be self-explanatory even on apps that only show that much.
+    Two bugs fixed here that caused "could not load bank name" / generic
+    failures in GPay, PhonePe, and Paytm:
+
+    1. `am` must be a strict two-decimal string ("100.00"), not a bare
+       integer string ("100") -- several UPI apps fail to parse the
+       amount (and mask it as an unrelated error) without it.
+    2. `tr` (transaction reference) and `mc` (merchant category code) are
+       a P2M (person-to-merchant) pair per the NPCI linking spec. This is
+       a personal VPA (P2P), not a registered merchant, so there's no
+       `mc` -- sending `tr` without it makes some apps try to resolve the
+       intent as a malformed merchant transaction, which is what breaks
+       payee-name/bank-name lookup. Dropped `tr` from the link entirely;
+       the reference still round-trips through `tn` (the note) for
+       reconciliation, and is tracked server-side via PaymentRequest.
 
     upi_id/merchant_name default to the env-var fallbacks above, but
     callers should pass the live values from AppSettings (get_settings())
@@ -61,10 +71,9 @@ def build_upi_link(amount_inr, transaction_ref, plan_label, upi_id=None, merchan
     params = {
         "pa": upi_id,
         "pn": merchant_name,
-        "am": str(amount_inr),
+        "am": f"{float(amount_inr):.2f}",
         "cu": "INR",
         "tn": note,
-        "tr": transaction_ref,
     }
     query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items())
     return f"upi://pay?{query}"
