@@ -29,6 +29,15 @@ def create_app(config_object="app.config.Config"):
 
     register_cli(app)
 
+    @app.context_processor
+    def inject_scout_url():
+        # SheshScout is a separate FastAPI/React service (its own DB,
+        # its own auth) -- not something that can be merged line-for-line
+        # into this Flask codebase. This just gives the navbar a link to
+        # wherever it's deployed. Empty by default so the link only shows
+        # up once SCOUT_URL is actually set on this service.
+        return {"scout_url": os.environ.get("SCOUT_URL", "").rstrip("/")}
+
     # Idempotent: only creates tables that don't exist yet, never touches or
     # drops existing ones. Without this, adding a new db.Model (like the
     # About page) in code does nothing in production until someone manually
@@ -134,7 +143,7 @@ def _ensure_appsettings_upi_columns(app, db):
             app.logger.info("Added missing app_settings.upi_id column")
         if "upi_merchant_name" not in columns:
             conn.execute(text(
-                "ALTER TABLE app_settings ADD COLUMN upi_merchant_name VARCHAR(120) NOT NULL DEFAULT 'SheshValuation'"
+                "ALTER TABLE app_settings ADD COLUMN upi_merchant_name VARCHAR(120) NOT NULL DEFAULT 'SheshAnalysis'"
             ))
             app.logger.info("Added missing app_settings.upi_merchant_name column")
 
