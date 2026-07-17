@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}SheshValuation — DCF Valuation Engine{% endblock %}</title>
+  <title>{% block title %}SheshAnalysis — DCF Valuation Engine{% endblock %}</title>
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32x32.png') }}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/favicon-16x16.png') }}">
@@ -15,12 +15,13 @@
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container">
       <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dcf.home') }}">
-        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="SheshValuation" height="36" class="me-2"
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="SheshAnalysis" height="36" class="me-2"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-        <span style="display:none; font-family: 'Times New Roman', Times, serif; font-weight:700; font-size:22px;">SheshValuation</span>
+        <span style="display:none; font-family: 'Times New Roman', Times, serif; font-weight:700; font-size:22px;">SheshAnalysis</span>
       </a>
       <div class="ms-auto">
         {% if current_user.is_authenticated %}
+          {% if scout_url %}<a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dcf.scout_redirect') }}" target="_blank" rel="noopener">📈 Stock Scout</a>{% endif %}
           <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dcf.history_list') }}">📜 History</a>
           <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dcf.billing_page') }}">💳 Billing</a>
           <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dcf.about_page') }}">👤 About</a>
